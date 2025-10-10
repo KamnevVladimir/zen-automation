@@ -102,7 +102,7 @@ func routes(_ app: Application) throws {
     let logger = Logger.zen()
     
     // AI клиент (только Anthropic Claude)
-    let aiClient = AnthropicClient(client: app.client)
+    let aiClient = AnthropicClient(client: app.client, logger: logger)
     logger.info("🤖 Используется Anthropic Claude (\(AppConfig.anthropicModel))")
     
     let contentGenerator = ContentGeneratorService(
