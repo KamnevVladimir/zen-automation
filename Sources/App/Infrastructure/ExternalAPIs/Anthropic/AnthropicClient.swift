@@ -22,7 +22,7 @@ final class AnthropicClient: AIClientProtocol {
         
         var request = ClientRequest(method: .POST, url: url)
         request.headers.add(name: "x-api-key", value: apiKey)
-        request.headers.add(name: "anthropic-version", value: "2023-06-01")
+        request.headers.add(name: "anthropic-version", value: "2025-01-22")
         request.headers.add(name: .contentType, value: "application/json")
         
         let requestBody: [String: Any] = [
@@ -48,13 +48,16 @@ final class AnthropicClient: AIClientProtocol {
             let content: [ContentBlock]
             
             struct ContentBlock: Codable {
-                let text: String
+                let type: String
+                let text: String?
             }
         }
         
         let anthropicResponse = try response.content.decode(AnthropicResponse.self)
         
-        return anthropicResponse.content.first?.text ?? ""
+        // Ищем первый text блок в ответе
+        let textBlock = anthropicResponse.content.first { $0.type == "text" }
+        return textBlock?.text ?? ""
     }
     
     func generateImage(prompt: String) async throws -> String {
