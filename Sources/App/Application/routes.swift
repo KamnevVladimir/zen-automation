@@ -67,7 +67,7 @@ func routes(_ app: Application) throws {
             return """
             <item>
                 <title><![CDATA[\(post.title)]]></title>
-                <description><![CDATA[\(post.body.prefix(500))...]]></description>
+                <description><![CDATA[\(post.body.prefix(500))...]]></description> <!-- Fixed: body instead of content -->
                 <link>https://t.me/gdeTravel</link>
                 <pubDate>\(pubDate)</pubDate>
                 <guid>\(post.id?.uuidString ?? UUID().uuidString)</guid>
