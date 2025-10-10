@@ -11,7 +11,7 @@ struct AppConfig {
     }
     
     static var maxTokens: Int {
-        Int(Environment.get("MAX_TOKENS") ?? "4000") ?? 4000
+        Int(Environment.get("MAX_TOKENS") ?? "8000") ?? 8000
     }
     
     static var temperature: Double {
