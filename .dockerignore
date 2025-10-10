@@ -1,0 +1,16 @@
+.build
+.swiftpm
+.git
+.github
+.gitignore
+.env
+.DS_Store
+*.xcodeproj
+xcuserdata
+DerivedData
+README.md
+Makefile
+*.md
+.vscode
+.idea
+
