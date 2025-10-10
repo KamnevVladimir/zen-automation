@@ -27,8 +27,15 @@ final class ContentGeneratorService: ContentGeneratorServiceProtocol {
         
         let startTime = Date()
         
-        // 1. Генерация текста
-        let textContent = try await generateText(for: request)
+        // 1. Получаем существующие заголовки для проверки уникальности
+        let existingTitles = try await ZenPostModel.query(on: db)
+            .all()
+            .map { $0.title.lowercased() }
+        
+        logger.info("📚 Найдено существующих постов: \(existingTitles.count)")
+        
+        // 2. Генерация текста с контекстом уникальности
+        let textContent = try await generateText(for: request, existingTitles: existingTitles)
         logger.info("✅ Текст сгенерирован")
         
         // 2. Парсинг JSON ответа от Claude (убираем markdown code fence если есть)
@@ -137,12 +144,13 @@ final class ContentGeneratorService: ContentGeneratorServiceProtocol {
         )
     }
     
-    private func generateText(for request: GenerationRequest) async throws -> String {
+    private func generateText(for request: GenerationRequest, existingTitles: [String]) async throws -> String {
         // Используем вирусные промпты для максимального engagement
         let systemPrompt = ViralPromptBuilder.buildEnhancedSystemPrompt()
         let userPrompt = ViralPromptBuilder.buildViralUserPrompt(
             for: request,
-            optimizer: viralOptimizer
+            optimizer: viralOptimizer,
+            existingTitles: existingTitles
         )
         
         logger.info("🔥 Генерирую вирусный контент с оптимизацией")

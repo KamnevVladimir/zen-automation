@@ -208,33 +208,69 @@ struct ContentPrompt {
     
     static func buildImagePrompt(for title: String, position: Int) -> String {
         let basePrompt = """
-        Create a professional, high-quality travel photography style image.
+        Create a PHOTOREALISTIC travel photograph that looks like it was taken by a real traveler with a smartphone or DSLR camera.
         
-        STYLE: Bright, vibrant, inviting, professional travel magazine aesthetic
-        LIGHTING: Natural, golden hour or soft daylight
-        COMPOSITION: Rule of thirds, balanced, no text overlays
-        COLORS: Warm and welcoming tones
-        MOOD: Inspiring, wanderlust-inducing
-        QUALITY: Ultra high-resolution, sharp focus
+        CRITICAL REALISM REQUIREMENTS:
+        - Must look like an authentic photo from a real trip, not AI-generated
+        - Natural imperfections: slight motion blur, natural grain, authentic lighting
+        - Real-world composition: not too perfect, spontaneous feel
+        - Actual travel photography aesthetic, not stock photo look
         
-        AVOID: Text, watermarks, people's faces in close-up, logos, dates
+        STYLE: 
+        - Authentic travel blogger photography
+        - Natural, unfiltered or lightly edited look
+        - Candid, not staged
+        - Real-world lighting conditions (not studio)
+        
+        LIGHTING: 
+        - Natural light only (sunlight, golden hour, overcast, or natural indoor light)
+        - Realistic shadows and highlights
+        - Authentic color temperature
+        
+        COMPOSITION:
+        - Real photographer composition (not AI-perfect)
+        - Natural perspective and angles
+        - Spontaneous framing
+        - Visible depth of field
+        
+        TECHNICAL:
+        - Photographic depth of field with natural bokeh
+        - Slight grain or noise for authenticity
+        - Real camera lens characteristics
+        - Natural color grading
+        
+        QUALITY: High resolution but with natural photo artifacts, sharp focus on subject
+        
+        STRICT AVOID:
+        - AI-generated look (too perfect, too smooth)
+        - Stock photo aesthetic
+        - Studio lighting
+        - Overly saturated colors
+        - Text, watermarks, logos, dates, UI elements
+        - People's faces in identifiable close-up
+        - Obvious CGI or 3D rendering look
         
         Aspect ratio: 16:9
+        OUTPUT: Photorealistic travel photograph
         """
         
         if position == 0 {
             return """
             \(basePrompt)
             
-            SUBJECT: Hero image for travel article titled "\(title)"
-            Create a stunning aerial or wide-angle view that captures the essence of the destination.
+            SUBJECT: Hero travel photo for article titled "\(title)"
+            Create a stunning but AUTHENTIC-looking wide shot or aerial view.
+            Must feel like a real photo taken during actual travel.
+            Examples: Real landscape vista, authentic city view, natural monument shot.
             """
         } else {
             return """
             \(basePrompt)
             
-            SUBJECT: Supporting image for travel article titled "\(title)"
-            Show specific landmarks, local culture, or scenic views.
+            SUBJECT: Supporting travel photo for article titled "\(title)"
+            Show specific landmarks, local scenes, or authentic travel moments.
+            Must look like candid travel photography from someone's real trip.
+            Examples: Street scene, local food, architectural detail, natural landscape.
             """
         }
     }
