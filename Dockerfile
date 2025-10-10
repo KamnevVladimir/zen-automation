@@ -50,5 +50,5 @@ ENV PORT=8080
 EXPOSE 8080
 
 ENTRYPOINT ["./App"]
-CMD ["serve", "--env", "production", "--hostname", "0.0.0.0", "--port", "8080"]
+CMD ["serve", "--env", "production", "--hostname", "0.0.0.0"]
 
