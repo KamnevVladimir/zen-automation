@@ -24,9 +24,6 @@ final class ZenPublisher: ZenPublisherProtocol {
     func publish(post: ZenPostModel, db: Database) async throws -> PublishResult {
         logger.info("📤 Публикация поста: \(post.title)")
         
-        // TODO: Интеграция с Яндекс Дзен API
-        // Пока что просто симулируем успешную публикацию
-        
         // 1. Обновляем статус поста
         post.status = .published
         post.publishedAt = Date()
@@ -34,20 +31,43 @@ final class ZenPublisher: ZenPublisherProtocol {
         
         try await post.save(on: db)
         
-        // 2. Получаем количество изображений
-        let imagesCount = try await ZenImageModel.query(on: db)
+        // 2. Получаем изображения
+        let images = try await ZenImageModel.query(on: db)
             .filter(\.$post.$id == post.id!)
-            .count()
+            .all()
         
-        // 3. Отправляем уведомление
-        try await notifier.sendPostPublished(post: post, images: imagesCount)
+        // 3. Формируем сообщение для Telegram с готовым постом
+        let message = """
+        ✅ <b>Новый пост готов к публикации</b>
         
-        logger.info("✅ Пост опубликован: \(post.zenArticleId ?? "N/A")")
+        📝 <b>Заголовок:</b> \(post.title)
+        
+        📊 <b>Статистика:</b>
+        • Символов: \(post.body.count)
+        • Изображений: \(images.count)
+        • Теги: \(post.tags.joined(separator: ", "))
+        
+        🔗 <b>Ссылки на изображения:</b>
+        \(images.map { "• \($0.url)" }.joined(separator: "\n"))
+        
+        📄 <b>Текст для публикации:</b>
+        
+        <b>\(post.title)</b>
+        
+        \(post.body.truncate(to: 2000, addEllipsis: true))
+        
+        💡 <i>Скопируйте и опубликуйте в Дзене вручную</i>
+        """
+        
+        // 4. Отправляем уведомление с готовым постом
+        try await notifier.sendNotification(message: message)
+        
+        logger.info("✅ Пост готов, отправлено уведомление")
         
         return PublishResult(
             success: true,
             zenArticleId: post.zenArticleId,
-            publishedURL: "https://dzen.ru/id/\(post.zenArticleId ?? "")",
+            publishedURL: nil,
             errorMessage: nil
         )
     }

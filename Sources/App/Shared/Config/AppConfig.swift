@@ -91,6 +91,23 @@ struct AppConfig {
         Environment.get("TELEGRAM_ADMIN_CHAT_ID") ?? ""
     }
     
+    // Telegram Channel для публикации (импорт в Дзен)
+    static var telegramChannelId: String {
+        Environment.get("TELEGRAM_CHANNEL_ID") ?? ""
+    }
+    
+    // Publishing Method
+    enum PublishMethod: String {
+        case rss = "rss"
+        case telegram = "telegram"
+        case direct = "direct"
+    }
+    
+    static var publishMethod: PublishMethod {
+        let method = Environment.get("PUBLISH_METHOD") ?? "telegram"
+        return PublishMethod(rawValue: method) ?? .telegram
+    }
+    
     // Bot Integration
     static var botUsername: String {
         Environment.get("BOT_USERNAME") ?? "gdeVacationBot"

@@ -103,10 +103,27 @@ func routes(_ app: Application) throws {
         logger: logger
     )
     
-    let publisher = ZenPublisher(
-        logger: logger,
-        notifier: notifier
-    )
+    // Выбор метода публикации
+    let publisher: ZenPublisherProtocol
+    switch AppConfig.publishMethod {
+    case .telegram:
+        publisher = TelegramChannelPublisher(
+            client: app.client,
+            logger: logger
+        )
+        logger.info("📱 Публикация через Telegram Channel")
+    case .rss:
+        publisher = ZenPublisher(
+            logger: logger,
+            notifier: notifier
+        )
+        logger.info("📰 Публикация через RSS")
+    case .direct:
+        publisher = ZenPublisher(
+            logger: logger,
+            notifier: notifier
+        )
+        logger.info("✉️ Прямая публикация (уведомления в Telegram)")
     
     let generationController = GenerationController(
         contentGenerator: contentGenerator,
