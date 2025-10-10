@@ -50,7 +50,52 @@ func routes(_ app: Application) throws {
         return try await metrics.encodeResponse(for: req)
     }
     
-    // Кросс-постинг: Telegram Channel → Дзен (автоматический импорт)
+    // RSS Feed для T-Journal
+    api.get("rss") { req async throws -> Response in
+        let posts = try await ZenPostModel.query(on: req.db)
+            .filter(\.$status, .equal, PostStatus.published)
+            .sort(\.$publishedAt, .descending)
+            .limit(20)
+            .all()
+        
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss Z"
+        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
+        
+        let rssItems = posts.map { post in
+            let pubDate = dateFormatter.string(from: post.publishedAt ?? post.createdAt ?? Date())
+            return """
+            <item>
+                <title><![CDATA[\(post.title)]]></title>
+                <description><![CDATA[\(post.content.prefix(500))...]]></description>
+                <link>https://t.me/gdeTravel</link>
+                <pubDate>\(pubDate)</pubDate>
+                <guid>\(post.id?.uuidString ?? UUID().uuidString)</guid>
+            </item>
+            """
+        }.joined(separator: "\n")
+        
+        let rss = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <rss version="2.0">
+            <channel>
+                <title>🛫 Дешевые путешествия</title>
+                <description>Актуальные советы по дешевым путешествиям и авиабилетам</description>
+                <link>https://t.me/gdeTravel</link>
+                <language>ru</language>
+                \(rssItems)
+            </channel>
+        </rss>
+        """
+        
+        var response = Response()
+        response.status = .ok
+        response.headers.contentType = .init(type: "application", subType: "rss+xml; charset=utf-8")
+        response.body = .init(string: rss)
+        return response
+    }
+    
+    // Кросс-постинг: Telegram Channel → Дзен + T-Journal
     
     // Регистрация контроллеров
     let validator = ContentValidator()
