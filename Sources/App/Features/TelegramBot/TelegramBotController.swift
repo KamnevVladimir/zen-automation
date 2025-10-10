@@ -272,7 +272,9 @@ final class TelegramBotController {
         ]
         
         if let keyboard = keyboard {
-            body["reply_markup"] = try JSONEncoder().encode(keyboard)
+            let keyboardData = try JSONEncoder().encode(keyboard)
+            let keyboardDict = try JSONSerialization.jsonObject(with: keyboardData)
+            body["reply_markup"] = keyboardDict
         }
         
         let data = try JSONSerialization.data(withJSONObject: body)
