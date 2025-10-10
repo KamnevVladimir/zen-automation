@@ -1,4 +1,5 @@
 import Vapor
+import Foundation
 
 // Stability AI для генерации изображений
 final class StabilityAIClient {
@@ -19,18 +20,34 @@ final class StabilityAIClient {
         let url = URI(string: "\(baseURL)/stable-image/generate/core")
         logger.info("🔗 URL: \(url)")
         
+        // Создаём multipart/form-data запрос
+        let boundary = "Boundary-\(UUID().uuidString)"
         var request = ClientRequest(method: .POST, url: url)
         request.headers.add(name: .authorization, value: "Bearer \(apiKey)")
-        request.headers.add(name: .contentType, value: "application/json")
+        request.headers.add(name: .contentType, value: "multipart/form-data; boundary=\(boundary)")
         
-        let body: [String: Any] = [
-            "prompt": prompt,
-            "output_format": "png",
-            "aspect_ratio": "16:9"
-        ]
+        // Формируем multipart body
+        var body = ""
         
-        let data = try JSONSerialization.data(withJSONObject: body)
-        request.body = .init(data: data)
+        // Добавляем prompt
+        body += "--\(boundary)\r\n"
+        body += "Content-Disposition: form-data; name=\"prompt\"\r\n\r\n"
+        body += "\(prompt)\r\n"
+        
+        // Добавляем output_format
+        body += "--\(boundary)\r\n"
+        body += "Content-Disposition: form-data; name=\"output_format\"\r\n\r\n"
+        body += "png\r\n"
+        
+        // Добавляем aspect_ratio
+        body += "--\(boundary)\r\n"
+        body += "Content-Disposition: form-data; name=\"aspect_ratio\"\r\n\r\n"
+        body += "16:9\r\n"
+        
+        // Закрываем multipart
+        body += "--\(boundary)--\r\n"
+        
+        request.body = .init(string: body)
         
         logger.info("📤 Отправляю запрос к Stability AI...")
         let response = try await client.send(request)
@@ -45,12 +62,14 @@ final class StabilityAIClient {
             throw Abort(.internalServerError, reason: "Stability AI error: \(response.status) - \(errorBody)")
         }
         
-        struct StabilityResponse: Content {
-            let image: String // base64 encoded image
+        // Stability AI возвращает binary изображение
+        guard let imageData = response.body else {
+            logger.error("❌ Нет данных изображения в ответе!")
+            throw Abort(.internalServerError, reason: "No image data in Stability AI response")
         }
         
-        let stabilityResponse = try response.content.decode(StabilityResponse.self)
-        let base64Image = stabilityResponse.image
+        // Конвертируем в base64
+        let base64Image = Data(buffer: imageData).base64EncodedString()
         
         logger.info("✅ Изображение успешно сгенерировано")
         logger.info("📦 Размер base64: \(base64Image.count) символов")
