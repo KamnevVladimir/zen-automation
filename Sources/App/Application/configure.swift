@@ -1,6 +1,7 @@
 import Vapor
 import Fluent
 import FluentPostgresDriver
+import PostgresKit
 import Queues
 import NIOSSL
 
@@ -14,19 +15,28 @@ public func configure(_ app: Application) throws {
         var tlsConfig = TLSConfiguration.makeClientConfiguration()
         tlsConfig.certificateVerification = .none // Отключить проверку сертификатов для Railway
         
-        try app.databases.use(.postgres(
-            url: databaseURL,
-            tlsConfiguration: tlsConfig
-        ), as: .psql)
+        var config = try PostgresConfiguration(url: databaseURL)
+        config.tlsConfiguration = tlsConfig
+        
+        app.databases.use(
+            DatabaseConfigurationFactory.postgres(configuration: config),
+            as: .psql
+        )
     } else {
         app.logger.warning("DATABASE_URL не задан, используется локальная БД")
-        app.databases.use(.postgres(
-            hostname: Environment.get("DB_HOST") ?? "localhost",
-            port: Environment.get("DB_PORT").flatMap(Int.init) ?? 5432,
-            username: Environment.get("DB_USER") ?? "postgres",
-            password: Environment.get("DB_PASS") ?? "postgres",
-            database: Environment.get("DB_NAME") ?? "zenautomation"
-        ), as: .psql)
+        app.databases.use(
+            DatabaseConfigurationFactory.postgres(
+                configuration: .init(
+                    hostname: Environment.get("DB_HOST") ?? "localhost",
+                    port: Environment.get("DB_PORT").flatMap(Int.init) ?? 5432,
+                    username: Environment.get("DB_USER") ?? "postgres",
+                    password: Environment.get("DB_PASS") ?? "postgres",
+                    database: Environment.get("DB_NAME") ?? "zenautomation",
+                    tls: .prefer(try? .init())
+                )
+            ),
+            as: .psql
+        )
     }
     
     // Миграции
