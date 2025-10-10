@@ -66,31 +66,9 @@ func routes(_ app: Application) throws {
     let validator = ContentValidator()
     let logger = Logger.zen()
     
-    // Выбор AI провайдера
-    let aiClient: AIClientProtocol
-    switch AppConfig.aiProvider {
-    case .openai:
-        aiClient = OpenAIClient(
-            client: app.client,
-            apiKey: AppConfig.openAIKey
-        )
-        logger.info("🤖 Используется OpenAI GPT-4")
-    case .anthropic:
-        aiClient = AnthropicClient(
-            client: app.client,
-            apiKey: AppConfig.anthropicKey,
-            model: AppConfig.anthropicModel
-        )
-        logger.info("🤖 Используется Anthropic Claude")
-    case .yandexgpt:
-        // TODO: Добавить YandexGPT клиент
-        aiClient = AnthropicClient(
-            client: app.client,
-            apiKey: AppConfig.anthropicKey,
-            model: AppConfig.anthropicModel
-        )
-        logger.warning("⚠️ YandexGPT пока не реализован, используется Claude")
-    }
+    // AI клиент (только Anthropic Claude)
+    let aiClient = AnthropicClient(client: app.client)
+    logger.info("🤖 Используется Anthropic Claude (\(AppConfig.anthropicModel))")
     
     let contentGenerator = ContentGeneratorService(
         aiClient: aiClient,
@@ -103,36 +81,27 @@ func routes(_ app: Application) throws {
         logger: logger
     )
     
-    // Выбор метода публикации
-    let publisher: ZenPublisherProtocol
-    switch AppConfig.publishMethod {
-    case .telegram:
-        publisher = TelegramChannelPublisher(
-            client: app.client,
-            logger: logger
-        )
-        logger.info("📱 Публикация через Telegram Channel")
-    case .rss:
-        publisher = ZenPublisher(
-            logger: logger,
-            notifier: notifier
-        )
-        logger.info("📰 Публикация через RSS")
-    case .direct:
-        publisher = ZenPublisher(
-            logger: logger,
-            notifier: notifier
-        )
-        logger.info("✉️ Прямая публикация (уведомления в Telegram)")
-    }
+    // Publisher (только Telegram Channel)
+    let publisher = TelegramChannelPublisher(
+        client: app.client,
+        logger: logger
+    )
+    logger.info("📱 Публикация через Telegram Channel (\(AppConfig.telegramChannelId))")
     
     let generationController = GenerationController(
         contentGenerator: contentGenerator,
         publisher: publisher
     )
     
+    let telegramBotController = TelegramBotController(
+        contentGenerator: contentGenerator,
+        publisher: publisher
+    )
+    
     try generationController.boot(routes: app)
+    try telegramBotController.boot(routes: app)
     
     app.logger.info("✅ Маршруты настроены")
+    app.logger.info("🤖 Telegram Bot готов к приему команд от пользователя \(AppConfig.adminUserId)")
 }
 

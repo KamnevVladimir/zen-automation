@@ -1,28 +1,7 @@
 import Vapor
 
 struct AppConfig {
-    // AI Provider Selection
-    enum AIProvider: String {
-        case openai = "openai"
-        case anthropic = "anthropic"
-        case yandexgpt = "yandexgpt"
-    }
-    
-    static var aiProvider: AIProvider {
-        let provider = Environment.get("AI_PROVIDER") ?? "anthropic"
-        return AIProvider(rawValue: provider) ?? .anthropic
-    }
-    
-    // OpenAI
-    static var openAIKey: String {
-        Environment.get("OPENAI_API_KEY") ?? ""
-    }
-    
-    static var openAIModel: String {
-        Environment.get("OPENAI_MODEL") ?? "gpt-4-turbo-preview"
-    }
-    
-    // Anthropic Claude
+    // Anthropic Claude (единственный AI провайдер)
     static var anthropicKey: String {
         Environment.get("ANTHROPIC_API_KEY") ?? ""
     }
@@ -31,55 +10,17 @@ struct AppConfig {
         Environment.get("ANTHROPIC_MODEL") ?? "claude-3-5-sonnet-20241022"
     }
     
-    // Yandex GPT
-    static var yandexGPTKey: String {
-        Environment.get("YANDEX_GPT_API_KEY") ?? ""
+    static var maxTokens: Int {
+        Int(Environment.get("MAX_TOKENS") ?? "4000") ?? 4000
     }
     
-    static var yandexGPTFolderId: String {
-        Environment.get("YANDEX_GPT_FOLDER_ID") ?? ""
+    static var temperature: Double {
+        Double(Environment.get("TEMPERATURE") ?? "0.7") ?? 0.7
     }
     
-    static var openAIMaxTokens: Int {
-        Int(Environment.get("OPENAI_MAX_TOKENS") ?? "4000") ?? 4000
-    }
-    
-    static var openAITemperature: Double {
-        Double(Environment.get("OPENAI_TEMPERATURE") ?? "0.7") ?? 0.7
-    }
-    
-    // DALL-E / Stability AI
-    enum ImageProvider: String {
-        case dalle = "dalle"
-        case stability = "stability"
-        case kandinsky = "kandinsky"
-    }
-    
-    static var imageProvider: ImageProvider {
-        let provider = Environment.get("IMAGE_PROVIDER") ?? "stability"
-        return ImageProvider(rawValue: provider) ?? .stability
-    }
-    
-    static var dalleModel: String {
-        Environment.get("DALLE_MODEL") ?? "dall-e-3"
-    }
-    
-    static var dalleSize: String {
-        Environment.get("DALLE_SIZE") ?? "1792x1024"
-    }
-    
-    static var dalleQuality: String {
-        Environment.get("DALLE_QUALITY") ?? "hd"
-    }
-    
-    // Stability AI
+    // Stability AI (единственный провайдер изображений)
     static var stabilityAIKey: String {
         Environment.get("STABILITY_AI_KEY") ?? ""
-    }
-    
-    // Kandinsky (Yandex)
-    static var kandinskyKey: String {
-        Environment.get("KANDINSKY_API_KEY") ?? ""
     }
     
     // Telegram
@@ -96,16 +37,9 @@ struct AppConfig {
         Environment.get("TELEGRAM_CHANNEL_ID") ?? ""
     }
     
-    // Publishing Method
-    enum PublishMethod: String {
-        case rss = "rss"
-        case telegram = "telegram"
-        case direct = "direct"
-    }
-    
-    static var publishMethod: PublishMethod {
-        let method = Environment.get("PUBLISH_METHOD") ?? "telegram"
-        return PublishMethod(rawValue: method) ?? .telegram
+    // Admin User ID для управления ботом
+    static var adminUserId: Int {
+        Int(Environment.get("TELEGRAM_ADMIN_USER_ID") ?? "434250421") ?? 434250421
     }
     
     // Bot Integration
