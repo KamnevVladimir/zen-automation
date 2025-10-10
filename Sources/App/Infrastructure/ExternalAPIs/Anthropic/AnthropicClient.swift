@@ -37,10 +37,10 @@ final class AnthropicClient: AIClientProtocol {
         
         var request = ClientRequest(method: .POST, url: url)
         request.headers.add(name: "x-api-key", value: apiKey) // Полный ключ!
-        request.headers.add(name: "anthropic-version", value: "2025-01-22")
+        request.headers.add(name: "anthropic-version", value: "2023-06-01")
         request.headers.add(name: .contentType, value: "application/json")
         
-        logger.info("📋 Headers: x-api-key=\(String(apiKey.prefix(10)))..., anthropic-version=2025-01-22")
+        logger.info("📋 Headers: x-api-key=\(String(apiKey.prefix(10)))..., anthropic-version=2023-06-01")
         logger.info("🤖 Model: \(model)")
         logger.info("⚙️ max_tokens: \(AppConfig.maxTokens), temperature: \(AppConfig.temperature)")
         
