@@ -8,7 +8,11 @@ import NIOSSL
 public func configure(_ app: Application) throws {
     // Конфигурация сервера
     app.http.server.configuration.hostname = Environment.get("HOSTNAME") ?? "0.0.0.0"
-    app.http.server.configuration.port = Int(Environment.get("PORT") ?? "8080") ?? 8080
+    // Безопасный парсинг PORT переменной
+    let portString = Environment.get("PORT") ?? "8080"
+    let port = Int(portString) ?? 8080
+    app.http.server.configuration.port = port
+    app.logger.info("🌐 Сервер запущен на порту: \(port)")
     
     // Конфигурация базы данных
     if let databaseURL = Environment.get("DATABASE_URL") {
@@ -28,7 +32,7 @@ public func configure(_ app: Application) throws {
         app.databases.use(
             DatabaseConfigurationFactory.postgres(configuration: .init(
                 hostname: Environment.get("DB_HOST") ?? "localhost",
-                port: Environment.get("DB_PORT").flatMap(Int.init) ?? 5432,
+                port: Int(Environment.get("DB_PORT") ?? "5432") ?? 5432,
                 username: Environment.get("DB_USER") ?? "postgres",
                 password: Environment.get("DB_PASS") ?? "postgres",
                 database: Environment.get("DB_NAME") ?? "zenautomation"

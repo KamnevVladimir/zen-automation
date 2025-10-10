@@ -50,9 +50,15 @@ final class TelegramPollingService {
                 try await Task.sleep(nanoseconds: 1_000_000_000) // 1 секунда
                 
             } catch {
-                app.logger.error("❌ Ошибка polling: \(error)")
-                // Пауза при ошибке
-                try? await Task.sleep(nanoseconds: 5_000_000_000) // 5 секунд
+                // Более мягкая обработка ошибок - не падаем, а логируем и продолжаем
+                if isRunning {  // Только если не идет shutdown
+                    app.logger.warning("⚠️ Ошибка polling (продолжаем работу): \(error)")
+                    // Пауза при ошибке
+                    try? await Task.sleep(nanoseconds: 5_000_000_000) // 5 секунд
+                } else {
+                    app.logger.info("ℹ️ Polling остановлен во время shutdown")
+                    break
+                }
             }
         }
     }
