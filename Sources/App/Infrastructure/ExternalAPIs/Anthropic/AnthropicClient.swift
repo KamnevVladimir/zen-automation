@@ -18,6 +18,15 @@ final class AnthropicClient: AIClientProtocol {
     }
     
     func generateText(systemPrompt: String, userPrompt: String) async throws -> String {
+        // Логируем размер промптов
+        let totalPromptSize = systemPrompt.count + userPrompt.count
+        print("📊 Размер промптов: system=\(systemPrompt.count), user=\(userPrompt.count), total=\(totalPromptSize)")
+        
+        // Проверяем, не слишком ли большой промпт (Claude 4.5 поддерживает до 200K токенов)
+        if totalPromptSize > 150000 {
+            throw Abort(.badRequest, reason: "Промпт слишком большой: \(totalPromptSize) символов")
+        }
+        
         let url = URI(string: "\(baseURL)/messages")
         
         var request = ClientRequest(method: .POST, url: url)
@@ -41,7 +50,9 @@ final class AnthropicClient: AIClientProtocol {
         let response = try await client.send(request)
         
         guard response.status == .ok else {
-            throw Abort(.internalServerError, reason: "Anthropic API error: \(response.status)")
+            // Читаем тело ответа для детальной ошибки
+            let errorBody = response.body.map { String(buffer: $0) } ?? "No error body"
+            throw Abort(.internalServerError, reason: "Anthropic API error: \(response.status) - \(errorBody)")
         }
         
         struct AnthropicResponse: Codable {
