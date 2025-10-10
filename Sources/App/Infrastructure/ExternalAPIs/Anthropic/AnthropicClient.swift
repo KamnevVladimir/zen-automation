@@ -36,7 +36,7 @@ final class AnthropicClient: AIClientProtocol {
         logger.info("🔗 URL: \(url)")
         
         var request = ClientRequest(method: .POST, url: url)
-        request.headers.add(name: "x-api-key", value: String(apiKey.prefix(10)) + "...")
+        request.headers.add(name: "x-api-key", value: apiKey) // Полный ключ!
         request.headers.add(name: "anthropic-version", value: "2025-01-22")
         request.headers.add(name: .contentType, value: "application/json")
         
