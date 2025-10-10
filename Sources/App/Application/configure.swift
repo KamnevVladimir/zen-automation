@@ -2,6 +2,7 @@ import Vapor
 import Fluent
 import FluentPostgresDriver
 import Queues
+import NIOSSL
 
 public func configure(_ app: Application) throws {
     // Конфигурация сервера
@@ -10,7 +11,13 @@ public func configure(_ app: Application) throws {
     
     // Конфигурация базы данных
     if let databaseURL = Environment.get("DATABASE_URL") {
-        try app.databases.use(.postgres(url: databaseURL), as: .psql)
+        var tlsConfig = TLSConfiguration.makeClientConfiguration()
+        tlsConfig.certificateVerification = .none // Отключить проверку сертификатов для Railway
+        
+        try app.databases.use(.postgres(
+            url: databaseURL,
+            tlsConfiguration: tlsConfig
+        ), as: .psql)
     } else {
         app.logger.warning("DATABASE_URL не задан, используется локальная БД")
         app.databases.use(.postgres(
