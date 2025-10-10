@@ -29,10 +29,10 @@ final class ContentGeneratorService: ContentGeneratorServiceProtocol {
         let textContent = try await generateText(for: request)
         logger.info("✅ Текст сгенерирован")
         
-        // 2. Парсинг JSON ответа
+        // 2. Парсинг JSON ответа от Claude
         guard let contentData = textContent.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: contentData) as? [String: Any] else {
-            throw Abort(.internalServerError, reason: "Не удалось распарсить ответ GPT")
+            throw Abort(.internalServerError, reason: "Не удалось распарсить ответ Claude")
         }
         
         let title = json["title"] as? String ?? "Без названия"
@@ -133,11 +133,11 @@ final class ContentGeneratorService: ContentGeneratorServiceProtocol {
     }
     
     private func estimateCost(textTokens: Int, images: Int) -> Double {
-        // GPT-4 Turbo: ~$0.01 per 1K input, ~$0.03 per 1K output
-        let textCost = (Double(textTokens) / 1000.0) * 0.02
+        // Claude Sonnet 4.5: ~$3.00 per 1M input, ~$15.00 per 1M output
+        let textCost = (Double(textTokens) / 1_000_000.0) * 9.0 // average
         
-        // DALL-E 3 HD: $0.080 per image
-        let imageCost = Double(images) * 0.080
+        // Stability AI Core: ~$0.03 per image
+        let imageCost = Double(images) * 0.03
         
         return textCost + imageCost
     }

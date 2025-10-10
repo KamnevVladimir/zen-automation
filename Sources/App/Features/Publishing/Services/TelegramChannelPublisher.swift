@@ -72,8 +72,8 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
         let body: [String: Any] = [
             "chat_id": channelId,
             "photo": url,
-            "caption": caption.truncate(to: 1024, addEllipsis: true),
-            "parse_mode": "HTML"
+            "caption": caption.truncate(to: 1024, addEllipsis: true)
+            // Без parse_mode: Дзен не переносит форматирование
         ]
         
         let data = try JSONSerialization.data(withJSONObject: body)
@@ -95,8 +95,8 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
         let body: [String: Any] = [
             "chat_id": channelId,
             "text": text.truncate(to: 4096, addEllipsis: true),
-            "parse_mode": "HTML",
             "disable_web_page_preview": false
+            // Без parse_mode: Дзен не переносит форматирование
         ]
         
         let data = try JSONSerialization.data(withJSONObject: body)
@@ -110,29 +110,48 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
     }
     
     private func formatCaption(post: ZenPostModel) -> String {
-        """
-        <b>\(post.title)</b>
+        // ВАЖНО: Дзен использует ПЕРВОЕ ПРЕДЛОЖЕНИЕ как заголовок (макс 140 символов)
+        // и НЕ переносит форматирование! Поэтому первое предложение БЕЗ HTML тегов.
+        let firstSentence = post.title.truncate(to: 140, addEllipsis: false)
         
-        \(post.subtitle ?? "")
+        var caption = firstSentence
         
-        \(post.body.truncate(to: 800, addEllipsis: true))
+        if let subtitle = post.subtitle, !subtitle.isEmpty {
+            caption += "\n\n\(subtitle)"
+        }
         
-        🔗 Подробнее в @\(AppConfig.botUsername)
-        """
+        // Добавляем начало тела статьи
+        let bodyPreview = post.body
+            .replacingOccurrences(of: "\n\n", with: "\n")
+            .truncate(to: 600, addEllipsis: true)
+        
+        caption += "\n\n\(bodyPreview)"
+        
+        return caption
     }
     
     private func formatMessage(post: ZenPostModel) -> String {
-        """
-        <b>\(post.title)</b>
+        // ВАЖНО: Дзен использует ПЕРВОЕ ПРЕДЛОЖЕНИЕ как заголовок (макс 140 символов)
+        // и НЕ переносит форматирование! Поэтому первое предложение БЕЗ HTML тегов.
+        let firstSentence = post.title.truncate(to: 140, addEllipsis: false)
         
-        \(post.subtitle ?? "")
+        var message = firstSentence
         
-        \(post.body.truncate(to: 3800, addEllipsis: true))
+        if let subtitle = post.subtitle, !subtitle.isEmpty {
+            message += "\n\n\(subtitle)"
+        }
         
-        🔗 Подробнее в @\(AppConfig.botUsername)
+        // Добавляем тело статьи
+        let bodyText = post.body
+            .replacingOccurrences(of: "\n\n", with: "\n")
+            .truncate(to: 3600, addEllipsis: true)
         
-        #путешествия #дешевыеполеты #отпуск
-        """
+        message += "\n\n\(bodyText)"
+        
+        // Хештеги в конце
+        message += "\n\n#путешествия #дешевыеполеты #отпуск"
+        
+        return message
     }
 }
 
