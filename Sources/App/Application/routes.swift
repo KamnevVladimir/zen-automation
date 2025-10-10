@@ -35,11 +35,17 @@ func routes(_ app: Application) throws {
             .filter(\.$status, .equal, PostStatus.published)
             .count()
         
-        let metrics = [
-            "total_posts": totalPosts,
-            "published_posts": publishedPosts,
-            "success_rate": totalPosts > 0 ? Double(publishedPosts) / Double(totalPosts) : 0.0
-        ]
+        struct MetricsResponse: Content {
+            let total_posts: Int
+            let published_posts: Int
+            let success_rate: Double
+        }
+        
+        let metrics = MetricsResponse(
+            total_posts: totalPosts,
+            published_posts: publishedPosts,
+            success_rate: totalPosts > 0 ? Double(publishedPosts) / Double(totalPosts) : 0.0
+        )
         
         return try await metrics.encodeResponse(for: req)
     }
