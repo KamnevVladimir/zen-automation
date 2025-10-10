@@ -50,23 +50,7 @@ func routes(_ app: Application) throws {
         return try await metrics.encodeResponse(for: req)
     }
     
-    // RSS Feed
-    api.get("rss") { req async throws -> Response in
-        let posts = try await ZenPostModel.query(on: req.db)
-            .filter(\.$status, .equal, PostStatus.published)
-            .sort(\.$publishedAt, .descending)
-            .limit(50)
-            .all()
-        
-        let rssPublisher = RSSPublisher()
-        let rss = rssPublisher.generateRSSFeed(posts: posts)
-        
-        var response = Response()
-        response.status = .ok
-        response.headers.contentType = .init(type: "application", subType: "rss+xml")
-        response.body = .init(string: rss)
-        return response
-    }
+    // Кросс-постинг: Telegram Channel → Дзен (автоматический импорт)
     
     // Регистрация контроллеров
     let validator = ContentValidator()
