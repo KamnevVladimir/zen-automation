@@ -15,7 +15,17 @@ final class TelegramChannelPublisher {
         self.logger = logger
     }
     
-    func publish(post: ZenPostModel, images: [ZenImageModel]) async throws -> PublishResult {
+    func publish(post: ZenPostModel, db: Database) async throws -> PublishResult {
+        // Получаем изображения из БД
+        let images = try await ZenImageModel.query(on: db)
+            .filter(\.$post.$id == post.id!)
+            .sort(\.$position)
+            .all()
+        
+        return try await publishInternal(post: post, images: images, db: db)
+    }
+    
+    private func publishInternal(post: ZenPostModel, images: [ZenImageModel], db: Database) async throws -> PublishResult {
         logger.info("📤 Публикация в Telegram канал: \(channelId)")
         
         do {
@@ -27,12 +37,13 @@ final class TelegramChannelPublisher {
                 try await sendMessage(text: formatMessage(post: post))
             }
             
-            // 2. Обновляем статус поста
-            post.status = .published
-            post.publishedAt = Date()
-            post.zenArticleId = "tg_\(UUID().uuidString.prefix(12))"
-            
-            logger.info("✅ Пост опубликован в Telegram: \(post.title)")
+        // 2. Обновляем статус поста
+        post.status = .published
+        post.publishedAt = Date()
+        post.zenArticleId = "tg_\(UUID().uuidString.prefix(12))"
+        try await post.save(on: db)
+        
+        logger.info("✅ Пост опубликован в Telegram: \(post.title)")
             
             return PublishResult(
                 success: true,

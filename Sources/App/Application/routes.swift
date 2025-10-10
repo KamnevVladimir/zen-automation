@@ -124,6 +124,7 @@ func routes(_ app: Application) throws {
             notifier: notifier
         )
         logger.info("✉️ Прямая публикация (уведомления в Telegram)")
+    }
     
     let generationController = GenerationController(
         contentGenerator: contentGenerator,
