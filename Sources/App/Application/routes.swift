@@ -98,8 +98,19 @@ func routes(_ app: Application) throws {
         publisher: publisher
     )
     
+    // Запуск Long Polling для Telegram бота
+    let pollingService = TelegramPollingService(
+        app: app,
+        controller: telegramBotController
+    )
+    
+    // Запускаем polling после старта приложения
+    app.lifecycle.use {
+        pollingService.start()
+        return app.eventLoopGroup.future()
+    }
+    
     try generationController.boot(routes: app)
-    try telegramBotController.boot(routes: app)
     
     app.logger.info("✅ Маршруты настроены")
     app.logger.info("🤖 Telegram Bot готов к приему команд от пользователя \(AppConfig.adminUserId)")
