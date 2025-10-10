@@ -63,16 +63,37 @@ func routes(_ app: Application) throws {
     }
     
     // Регистрация контроллеров
-    let openAIClient = OpenAIClient(
-        client: app.client,
-        apiKey: AppConfig.openAIKey
-    )
-    
     let validator = ContentValidator()
     let logger = Logger.zen()
     
+    // Выбор AI провайдера
+    let aiClient: AIClientProtocol
+    switch AppConfig.aiProvider {
+    case .openai:
+        aiClient = OpenAIClient(
+            client: app.client,
+            apiKey: AppConfig.openAIKey
+        )
+        logger.info("🤖 Используется OpenAI GPT-4")
+    case .anthropic:
+        aiClient = AnthropicClient(
+            client: app.client,
+            apiKey: AppConfig.anthropicKey,
+            model: AppConfig.anthropicModel
+        )
+        logger.info("🤖 Используется Anthropic Claude")
+    case .yandexgpt:
+        // TODO: Добавить YandexGPT клиент
+        aiClient = AnthropicClient(
+            client: app.client,
+            apiKey: AppConfig.anthropicKey,
+            model: AppConfig.anthropicModel
+        )
+        logger.warning("⚠️ YandexGPT пока не реализован, используется Claude")
+    }
+    
     let contentGenerator = ContentGeneratorService(
-        openAIClient: openAIClient,
+        aiClient: aiClient,
         validator: validator,
         logger: logger
     )

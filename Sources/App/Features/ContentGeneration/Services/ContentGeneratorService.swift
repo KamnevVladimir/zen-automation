@@ -6,16 +6,16 @@ protocol ContentGeneratorServiceProtocol {
 }
 
 final class ContentGeneratorService: ContentGeneratorServiceProtocol {
-    private let openAIClient: OpenAIClientProtocol
+    private let aiClient: AIClientProtocol
     private let validator: ContentValidatorProtocol
     private let logger: Logger
     
     init(
-        openAIClient: OpenAIClientProtocol,
+        aiClient: AIClientProtocol,
         validator: ContentValidatorProtocol,
         logger: Logger
     ) {
-        self.openAIClient = openAIClient
+        self.aiClient = aiClient
         self.validator = validator
         self.logger = logger
     }
@@ -109,25 +109,24 @@ final class ContentGeneratorService: ContentGeneratorServiceProtocol {
         let systemPrompt = ContentPrompt.buildSystemPrompt()
         let userPrompt = ContentPrompt.buildUserPrompt(for: request)
         
-        let messages: [OpenAIChatRequest.Message] = [
-            .init(role: "system", content: systemPrompt),
-            .init(role: "user", content: userPrompt)
-        ]
-        
-        let response = try await openAIClient.chatCompletion(
-            messages: messages,
-            responseFormat: "json_object"
+        return try await aiClient.generateText(
+            systemPrompt: systemPrompt,
+            userPrompt: userPrompt
         )
-        
-        return response.choices.first?.message.content ?? ""
     }
     
     private func generateImages(prompts: [String]) async throws -> [String] {
         var urls: [String] = []
         
         for prompt in prompts.prefix(3) {
-            let url = try await openAIClient.generateImage(prompt: prompt)
-            urls.append(url)
+            do {
+                let url = try await aiClient.generateImage(prompt: prompt)
+                urls.append(url)
+            } catch {
+                logger.warning("⚠️ Не удалось сгенерировать изображение: \(error)")
+                // Используем placeholder если генерация не удалась
+                urls.append("https://via.placeholder.com/1792x1024?text=Travel+Image")
+            }
         }
         
         return urls

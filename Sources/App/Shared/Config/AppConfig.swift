@@ -1,6 +1,18 @@
 import Vapor
 
 struct AppConfig {
+    // AI Provider Selection
+    enum AIProvider: String {
+        case openai = "openai"
+        case anthropic = "anthropic"
+        case yandexgpt = "yandexgpt"
+    }
+    
+    static var aiProvider: AIProvider {
+        let provider = Environment.get("AI_PROVIDER") ?? "anthropic"
+        return AIProvider(rawValue: provider) ?? .anthropic
+    }
+    
     // OpenAI
     static var openAIKey: String {
         Environment.get("OPENAI_API_KEY") ?? ""
@@ -8,6 +20,24 @@ struct AppConfig {
     
     static var openAIModel: String {
         Environment.get("OPENAI_MODEL") ?? "gpt-4-turbo-preview"
+    }
+    
+    // Anthropic Claude
+    static var anthropicKey: String {
+        Environment.get("ANTHROPIC_API_KEY") ?? ""
+    }
+    
+    static var anthropicModel: String {
+        Environment.get("ANTHROPIC_MODEL") ?? "claude-3-5-sonnet-20241022"
+    }
+    
+    // Yandex GPT
+    static var yandexGPTKey: String {
+        Environment.get("YANDEX_GPT_API_KEY") ?? ""
+    }
+    
+    static var yandexGPTFolderId: String {
+        Environment.get("YANDEX_GPT_FOLDER_ID") ?? ""
     }
     
     static var openAIMaxTokens: Int {
@@ -18,7 +48,18 @@ struct AppConfig {
         Double(Environment.get("OPENAI_TEMPERATURE") ?? "0.7") ?? 0.7
     }
     
-    // DALL-E
+    // DALL-E / Stability AI
+    enum ImageProvider: String {
+        case dalle = "dalle"
+        case stability = "stability"
+        case kandinsky = "kandinsky"
+    }
+    
+    static var imageProvider: ImageProvider {
+        let provider = Environment.get("IMAGE_PROVIDER") ?? "stability"
+        return ImageProvider(rawValue: provider) ?? .stability
+    }
+    
     static var dalleModel: String {
         Environment.get("DALLE_MODEL") ?? "dall-e-3"
     }
@@ -29,6 +70,16 @@ struct AppConfig {
     
     static var dalleQuality: String {
         Environment.get("DALLE_QUALITY") ?? "hd"
+    }
+    
+    // Stability AI
+    static var stabilityAIKey: String {
+        Environment.get("STABILITY_AI_KEY") ?? ""
+    }
+    
+    // Kandinsky (Yandex)
+    static var kandinskyKey: String {
+        Environment.get("KANDINSKY_API_KEY") ?? ""
     }
     
     // Telegram
