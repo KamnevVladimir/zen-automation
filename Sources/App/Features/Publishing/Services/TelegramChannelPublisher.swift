@@ -2,7 +2,7 @@ import Vapor
 import Fluent
 
 /// Публикация в Telegram Channel (для импорта в Дзен)
-final class TelegramChannelPublisher {
+final class TelegramChannelPublisher: ZenPublisherProtocol {
     private let client: Client
     private let botToken: String
     private let channelId: String // Например: @your_channel

@@ -32,7 +32,7 @@ func routes(_ app: Application) throws {
     api.get("metrics") { req async throws -> Response in
         let totalPosts = try await ZenPostModel.query(on: req.db).count()
         let publishedPosts = try await ZenPostModel.query(on: req.db)
-            .filter(\.$status == .published)
+            .filter(\.$status, .equal, PostStatus.published)
             .count()
         
         let metrics = [
@@ -47,7 +47,7 @@ func routes(_ app: Application) throws {
     // RSS Feed
     api.get("rss") { req async throws -> Response in
         let posts = try await ZenPostModel.query(on: req.db)
-            .filter(\.$status == .published)
+            .filter(\.$status, .equal, PostStatus.published)
             .sort(\.$publishedAt, .descending)
             .limit(50)
             .all()
@@ -90,12 +90,12 @@ func routes(_ app: Application) throws {
     
     let generationController = GenerationController(
         contentGenerator: contentGenerator,
-        publisher: publisher
+        publisher: publisher as ZenPublisherProtocol
     )
     
     let telegramBotController = TelegramBotController(
         contentGenerator: contentGenerator,
-        publisher: publisher
+        publisher: publisher as ZenPublisherProtocol
     )
     
     // Запуск Long Polling для Telegram бота
@@ -105,10 +105,9 @@ func routes(_ app: Application) throws {
     )
     
     // Запускаем polling после старта приложения
-    app.lifecycle.use {
-        pollingService.start()
-        return app.eventLoopGroup.future()
-    }
+    app.lifecycle.use(
+        TelegramPollingLifecycleHandler(pollingService: pollingService)
+    )
     
     try generationController.boot(routes: app)
     
