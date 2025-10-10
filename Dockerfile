@@ -21,8 +21,11 @@ COPY . .
 # TODO: Исправить тесты и включить обратно
 # RUN swift test --enable-test-discovery
 
-# Сборка release
-RUN swift build -c release --static-swift-stdlib
+    # Сборка release
+    RUN swift build -c release --static-swift-stdlib
+    
+    # Создание папки Resources если не существует
+    RUN mkdir -p /build/Resources
 
 # Runtime образ
 FROM ubuntu:jammy
@@ -37,8 +40,8 @@ WORKDIR /app
 # Копирование бинарника
 COPY --from=build /build/.build/release/App /app/App
 
-# Копирование ресурсов
-COPY --from=build /build/Resources /app/Resources
+    # Копирование ресурсов
+    COPY --from=build /build/Resources /app/Resources
 
 # Переменные окружения
 ENV HOSTNAME=0.0.0.0
