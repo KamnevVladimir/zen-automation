@@ -8,6 +8,7 @@ protocol ContentGeneratorServiceProtocol {
 final class ContentGeneratorService: ContentGeneratorServiceProtocol {
     private let aiClient: AIClientProtocol
     private let validator: ContentValidatorProtocol
+    private let viralOptimizer: ViralContentOptimizer
     private let logger: Logger
     
     init(
@@ -17,6 +18,7 @@ final class ContentGeneratorService: ContentGeneratorServiceProtocol {
     ) {
         self.aiClient = aiClient
         self.validator = validator
+        self.viralOptimizer = ViralContentOptimizer()
         self.logger = logger
     }
     
@@ -43,8 +45,23 @@ final class ContentGeneratorService: ContentGeneratorServiceProtocol {
         let imagePrompts = json["image_prompts"] as? [String] ?? []
         let estimatedReadTime = json["estimated_read_time"] as? Int ?? 5
         
-        // 3. Валидация контента
-        let validationResult = validator.validate(body: body, tags: tags)
+        // Анализируем вирусный потенциал заголовка
+        let viralScore = viralOptimizer.analyzeTitle(title)
+        logger.info("📊 Вирусность заголовка: \(String(format: "%.1f%%", viralScore.overall * 100))")
+        
+        if !viralScore.recommendations.isEmpty {
+            logger.warning("💡 Рекомендации по улучшению:")
+            viralScore.recommendations.forEach { logger.warning("  - \($0)") }
+        }
+        
+        // Оптимизируем теги для Дзена
+        let optimizedTags = viralOptimizer.optimizeTags(
+            for: request.topic ?? title,
+            category: request.templateType
+        )
+        
+        // 3. Валидация контента (используем оптимизированные теги)
+        let validationResult = validator.validate(body: body, tags: optimizedTags)
         if !validationResult.isValid {
             logger.warning("⚠️ Контент не прошёл валидацию: \(validationResult.issues.joined(separator: ", "))")
             throw Abort(.badRequest, reason: "Контент не прошёл валидацию")
@@ -55,12 +72,12 @@ final class ContentGeneratorService: ContentGeneratorServiceProtocol {
         let imageURLs = try await generateImages(prompts: imagePrompts)
         logger.info("✅ Изображения сгенерированы: \(imageURLs.count) шт")
         
-        // 5. Сохранение в БД
+        // 5. Сохранение в БД с оптимизированными тегами
         let post = ZenPostModel(
             title: title,
             subtitle: subtitle,
             body: body,
-            tags: tags,
+            tags: optimizedTags, // Используем оптимизированные теги
             metaDescription: metaDescription,
             templateType: request.templateType.rawValue,
             status: .draft
@@ -97,7 +114,7 @@ final class ContentGeneratorService: ContentGeneratorServiceProtocol {
             title: title,
             subtitle: subtitle,
             body: body,
-            tags: tags,
+            tags: optimizedTags, // Возвращаем оптимизированные теги
             metaDescription: metaDescription,
             imageURLs: imageURLs,
             estimatedReadTime: estimatedReadTime,
@@ -106,8 +123,14 @@ final class ContentGeneratorService: ContentGeneratorServiceProtocol {
     }
     
     private func generateText(for request: GenerationRequest) async throws -> String {
-        let systemPrompt = ContentPrompt.buildSystemPrompt()
-        let userPrompt = ContentPrompt.buildUserPrompt(for: request)
+        // Используем вирусные промпты для максимального engagement
+        let systemPrompt = ViralPromptBuilder.buildEnhancedSystemPrompt()
+        let userPrompt = ViralPromptBuilder.buildViralUserPrompt(
+            for: request,
+            optimizer: viralOptimizer
+        )
+        
+        logger.info("🔥 Генерирую вирусный контент с оптимизацией")
         
         return try await aiClient.generateText(
             systemPrompt: systemPrompt,
