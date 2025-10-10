@@ -31,11 +31,26 @@ final class ContentGeneratorService: ContentGeneratorServiceProtocol {
         let textContent = try await generateText(for: request)
         logger.info("✅ Текст сгенерирован")
         
-        // 2. Парсинг JSON ответа от Claude
-        guard let contentData = textContent.data(using: .utf8),
+        // 2. Парсинг JSON ответа от Claude (убираем markdown code fence если есть)
+        var cleanedContent = textContent.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Убираем ```json ... ``` если Claude обернул в markdown
+        if cleanedContent.hasPrefix("```json") {
+            cleanedContent = cleanedContent.replacingOccurrences(of: "```json", with: "")
+            cleanedContent = cleanedContent.replacingOccurrences(of: "```", with: "")
+            cleanedContent = cleanedContent.trimmingCharacters(in: .whitespacesAndNewlines)
+        } else if cleanedContent.hasPrefix("```") {
+            cleanedContent = cleanedContent.replacingOccurrences(of: "```", with: "")
+            cleanedContent = cleanedContent.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        
+        guard let contentData = cleanedContent.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: contentData) as? [String: Any] else {
+            logger.error("❌ Не удалось распарсить JSON. Очищенный контент: \(cleanedContent.prefix(500))")
             throw Abort(.internalServerError, reason: "Не удалось распарсить ответ Claude")
         }
+        
+        logger.info("✅ JSON успешно распарсен")
         
         let title = json["title"] as? String ?? "Без названия"
         let subtitle = json["subtitle"] as? String
