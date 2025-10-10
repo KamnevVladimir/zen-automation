@@ -7,7 +7,7 @@ struct AppConfig {
     }
     
     static var anthropicModel: String {
-        Environment.get("ANTHROPIC_MODEL") ?? "claude-3-5-sonnet-20241022"
+        Environment.get("ANTHROPIC_MODEL") ?? "claude-sonnet-4-5-20250929"
     }
     
     static var maxTokens: Int {
