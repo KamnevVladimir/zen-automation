@@ -5,23 +5,125 @@ import Fluent
 final class TelegramBotController {
     let contentGenerator: ContentGeneratorServiceProtocol
     let publisher: ZenPublisherProtocol
+    let stateManager = BotStateManager()
     
     init(contentGenerator: ContentGeneratorServiceProtocol, publisher: ZenPublisherProtocol) {
         self.contentGenerator = contentGenerator
         self.publisher = publisher
     }
     
-    func handleCreatePostCommand(text: String, chatId: Int, req: Request) async {
-        do {
-            // Извлекаем тему из сообщения
-            let topic = extractTopic(from: text)
+    func handleMessage(text: String, userId: Int, chatId: Int, req: Request) async {
+        let currentState = stateManager.getState(for: userId)
+        
+        switch currentState {
+        case .idle:
+            await handleIdleState(text: text, userId: userId, chatId: chatId, req: req)
+        case .waitingForTopic:
+            await handleTopicInput(text: text, userId: userId, chatId: chatId, req: req)
+        }
+    }
+    
+    private func handleIdleState(text: String, userId: Int, chatId: Int, req: Request) async {
+        if text == "🚀 Создать новый пост" {
+            // Переключаем в режим ожидания темы
+            stateManager.setState(.waitingForTopic, for: userId)
             
+            try? await sendMessage(
+                chatId: chatId,
+                text: """
+                📝 Введите тему для нового поста:
+                
+                Примеры:
+                • Дешевые авиабилеты в ноябре 2025
+                • 7 лайфхаков для экономии на отелях
+                • Турция vs Египет для отдыха
+                • Куда слетать на выходные из Москвы
+                
+                Просто напишите тему, без дополнительных команд 👇
+                """,
+                keyboard: getCancelKeyboard(),
+                req: req
+            )
+        } else if text == "/start" {
+            await sendWelcomeMessage(chatId: chatId, req: req)
+        } else {
+            try? await sendMessage(
+                chatId: chatId,
+                text: "Используйте кнопку ниже для создания поста 👇",
+                keyboard: getMainKeyboard(),
+                req: req
+            )
+        }
+    }
+    
+    private func handleTopicInput(text: String, userId: Int, chatId: Int, req: Request) async {
+        if text == "❌ Отмена" {
+            // Возвращаемся в обычный режим
+            stateManager.resetState(for: userId)
+            
+            try? await sendMessage(
+                chatId: chatId,
+                text: "✅ Отменено. Используйте кнопку для создания нового поста.",
+                keyboard: getMainKeyboard(),
+                req: req
+            )
+            return
+        }
+        
+        // Обрабатываем введенную тему
+        let topic = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        guard !topic.isEmpty else {
+            try? await sendMessage(
+                chatId: chatId,
+                text: "⚠️ Пожалуйста, введите тему для поста.",
+                keyboard: getCancelKeyboard(),
+                req: req
+            )
+            return
+        }
+        
+        // Возвращаемся в обычный режим
+        stateManager.resetState(for: userId)
+        
+        // Создаем пост
+        await createPost(topic: topic, chatId: chatId, req: req)
+    }
+    
+    private func sendWelcomeMessage(chatId: Int, req: Request) async {
+        let message = """
+        🤖 Добро пожаловать в Zen Automation Bot!
+        
+        Я помогу вам создавать качественные посты для Яндекс Дзен про путешествия.
+        
+        📱 Канал публикации: \(AppConfig.telegramChannelId)
+        
+        ⚡ Автопосты: 08:00, 12:00, 16:00, 20:00 MSK
+        
+        Используйте кнопку ниже для создания нового поста 👇
+        """
+        
+        try? await sendMessage(
+            chatId: chatId,
+            text: message,
+            keyboard: getMainKeyboard(),
+            req: req
+        )
+    }
+    
+    private func createPost(topic: String, chatId: Int, req: Request) async {
+        do {
             req.logger.info("🚀 Создаю пост на тему: \(topic)")
             
             // Отправляем уведомление что начали генерацию
             try await sendMessage(
                 chatId: chatId,
-                text: "🚀 Начинаю создавать пост на тему: \"\(topic)\"\n\nЭто займёт 1-2 минуты...",
+                text: """
+                🚀 Сейчас создам новый пост на тему "\(topic)"
+                
+                ⏳ Это займёт 1-2 минуты...
+                """,
+                keyboard: getMainKeyboard(),
                 req: req
             )
             
@@ -58,19 +160,28 @@ final class TelegramBotController {
                     text: """
                     ✅ Пост успешно создан и опубликован!
                     
-                    📝 Заголовок: \(response.title)
+                    📝 **\(response.title)**
+                    
                     📊 Символов: \(response.body.count)
                     🖼 Изображений: \(response.imageURLs.count)
                     📱 Канал: \(AppConfig.telegramChannelId)
                     
-                    Дзен импортирует пост в течение 30 минут.
+                    🔄 Дзен импортирует пост в течение 30 минут
+                    
+                    Хотите создать ещё один пост? 👇
                     """,
+                    keyboard: getMainKeyboard(),
                     req: req
                 )
             } else {
                 try await sendMessage(
                     chatId: chatId,
-                    text: "❌ Ошибка публикации: \(publishResult.errorMessage ?? "Unknown error")",
+                    text: """
+                    ❌ Ошибка публикации: \(publishResult.errorMessage ?? "Unknown error")
+                    
+                    Попробуйте ещё раз 👇
+                    """,
+                    keyboard: getMainKeyboard(),
                     req: req
                 )
             }
@@ -80,32 +191,37 @@ final class TelegramBotController {
             
             try? await sendMessage(
                 chatId: chatId,
-                text: "❌ Ошибка при создании поста: \(error.localizedDescription)",
+                text: """
+                ❌ Ошибка при создании поста: \(error.localizedDescription)
+                
+                Попробуйте ещё раз 👇
+                """,
+                keyboard: getMainKeyboard(),
                 req: req
             )
         }
     }
     
-    private func extractTopic(from text: String) -> String {
-        // Извлекаем тему из "Сделай пост на тематику <тема>"
-        let pattern = "сделай пост на тематику[\\s<]*([^>]+)[>]*"
-        let regex = try! NSRegularExpression(pattern: pattern, options: .caseInsensitive)
-        let range = NSRange(text.startIndex..., in: text)
-        
-        if let match = regex.firstMatch(in: text, range: range),
-           let topicRange = Range(match.range(at: 1), in: text) {
-            return String(text[topicRange]).trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        
-        // Если не смогли извлечь, возвращаем весь текст после "тематику"
-        if let index = text.lowercased().range(of: "тематику")?.upperBound {
-            return String(text[index...])
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .replacingOccurrences(of: "<", with: "")
-                .replacingOccurrences(of: ">", with: "")
-        }
-        
-        return "путешествия"
+    // MARK: - Keyboards
+    
+    private func getMainKeyboard() -> TelegramKeyboard {
+        return TelegramKeyboard(
+            keyboard: [
+                [TelegramKeyboardButton(text: "🚀 Создать новый пост")]
+            ],
+            resizeKeyboard: true,
+            persistent: true
+        )
+    }
+    
+    private func getCancelKeyboard() -> TelegramKeyboard {
+        return TelegramKeyboard(
+            keyboard: [
+                [TelegramKeyboardButton(text: "❌ Отмена")]
+            ],
+            resizeKeyboard: true,
+            persistent: false
+        )
     }
     
     private func determinePostType(from topic: String) -> PostCategory {
@@ -138,17 +254,26 @@ final class TelegramBotController {
     }
     
     
-    private func sendMessage(chatId: Int, text: String, req: Request) async throws {
+    private func sendMessage(
+        chatId: Int, 
+        text: String, 
+        keyboard: TelegramKeyboard? = nil, 
+        req: Request
+    ) async throws {
         let url = URI(string: "https://api.telegram.org/bot\(AppConfig.telegramToken)/sendMessage")
         
         var request = ClientRequest(method: .POST, url: url)
         request.headers.add(name: .contentType, value: "application/json")
         
-        let body: [String: Any] = [
+        var body: [String: Any] = [
             "chat_id": chatId,
             "text": text,
-            "parse_mode": "HTML"
+            "parse_mode": "Markdown"
         ]
+        
+        if let keyboard = keyboard {
+            body["reply_markup"] = try JSONEncoder().encode(keyboard)
+        }
         
         let data = try JSONSerialization.data(withJSONObject: body)
         request.body = .init(data: data)
@@ -200,4 +325,22 @@ struct TelegramUser: Content {
 struct TelegramChat: Content {
     let id: Int
     let type: String
+}
+
+// MARK: - Keyboard Models
+
+struct TelegramKeyboard: Content {
+    let keyboard: [[TelegramKeyboardButton]]
+    let resizeKeyboard: Bool
+    let persistent: Bool
+    
+    enum CodingKeys: String, CodingKey {
+        case keyboard
+        case resizeKeyboard = "resize_keyboard"
+        case persistent = "is_persistent"
+    }
+}
+
+struct TelegramKeyboardButton: Content {
+    let text: String
 }

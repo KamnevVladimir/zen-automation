@@ -115,15 +115,12 @@ final class TelegramPollingService {
             on: app.eventLoopGroup.next()
         )
         
-        // Обрабатываем только команды создания постов
-        if text.lowercased().hasPrefix("сделай пост на тематику") {
-            await controller.handleCreatePostCommand(
-                text: text,
-                chatId: message.chat.id,
-                req: fakeRequest
-            )
-        } else {
-            app.logger.info("📝 Игнорирую сообщение: \(text)")
-        }
+        // Передаем все сообщения в контроллер
+        await controller.handleMessage(
+            text: text,
+            userId: from.id,
+            chatId: message.chat.id,
+            req: fakeRequest
+        )
     }
 }
