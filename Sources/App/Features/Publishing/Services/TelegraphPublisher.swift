@@ -65,7 +65,23 @@ final class TelegraphPublisher: TelegraphPublisherProtocol {
     private func convertToTelegraphHTMLArray(content: String, images: [ZenImageModel]) -> [[String: Any]] {
         var htmlArray: [[String: Any]] = []
         
-        // Обрабатываем контент
+        // 1. СНАЧАЛА добавляем главное изображение
+        if let mainImage = images.first(where: { $0.position == 0 }) {
+            htmlArray.append([
+                "tag": "figure",
+                "children": [
+                    [
+                        "tag": "img",
+                        "attrs": [
+                            "src": mainImage.url,
+                            "alt": "Главное изображение"
+                        ]
+                    ]
+                ]
+            ])
+        }
+        
+        // 2. Обрабатываем контент
         var processedContent = content
         
         // Заменяем **жирный** на <b>жирный</b>
@@ -73,24 +89,25 @@ final class TelegraphPublisher: TelegraphPublisherProtocol {
         let range = NSRange(location: 0, length: processedContent.utf16.count)
         processedContent = boldRegex.stringByReplacingMatches(in: processedContent, options: [], range: range, withTemplate: "<b>$1</b>")
         
-        // Заменяем эмодзи маркеры на HTML списки
-        processedContent = processedContent.replacingOccurrences(of: "⚡️", with: "<br>• ")
-        processedContent = processedContent.replacingOccurrences(of: "🎯", with: "<br>• ")
-        processedContent = processedContent.replacingOccurrences(of: "✈️", with: "<br>• ")
-        processedContent = processedContent.replacingOccurrences(of: "💰", with: "<br>• ")
-        processedContent = processedContent.replacingOccurrences(of: "📍", with: "<br>• ")
+        // Заменяем эмодзи маркеры на HTML списки (убираем эмодзи, оставляем bullet points)
+        processedContent = processedContent.replacingOccurrences(of: "⚡️ ", with: "<br>• ")
+        processedContent = processedContent.replacingOccurrences(of: "🎯 ", with: "<br>• ")
+        processedContent = processedContent.replacingOccurrences(of: "✈️ ", with: "<br>• ")
+        processedContent = processedContent.replacingOccurrences(of: "💰 ", with: "<br>• ")
+        processedContent = processedContent.replacingOccurrences(of: "📍 ", with: "<br>• ")
         
         // Заменяем переносы строк на <br>
         processedContent = processedContent.replacingOccurrences(of: "\n", with: "<br>")
         
-        // Добавляем текст как HTML элемент
+        // 3. Добавляем текст как HTML элемент
         htmlArray.append([
             "tag": "p",
             "children": [processedContent]
         ])
         
-        // Добавляем изображения
-        for (index, image) in images.enumerated() {
+        // 4. Добавляем остальные изображения в конце (если есть)
+        let additionalImages = images.filter { $0.position != 0 }
+        for (index, image) in additionalImages.enumerated() {
             htmlArray.append([
                 "tag": "figure",
                 "children": [
@@ -98,7 +115,7 @@ final class TelegraphPublisher: TelegraphPublisherProtocol {
                         "tag": "img",
                         "attrs": [
                             "src": image.url,
-                            "alt": "Изображение \(index + 1)"
+                            "alt": "Изображение \(index + 2)"
                         ]
                     ]
                 ]
