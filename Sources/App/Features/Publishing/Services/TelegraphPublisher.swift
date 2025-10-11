@@ -266,18 +266,24 @@ final class TelegraphPublisher: TelegraphPublisherProtocol {
                 // Обычный абзац
                 var processedParagraph = trimmedParagraph
                 
-                // Заменяем **жирный** на <b>жирный</b>
-                let boldRegex = try! NSRegularExpression(pattern: "\\*\\*([^*]+)\\*\\*", options: [])
-                let range = NSRange(location: 0, length: processedParagraph.utf16.count)
-                processedParagraph = boldRegex.stringByReplacingMatches(in: processedParagraph, options: [], range: range, withTemplate: "<b>$1</b>")
-                
                 // Заменяем одинарные переносы строк на пробелы
                 processedParagraph = processedParagraph.replacingOccurrences(of: "\n", with: " ")
                 
-                htmlArray.append([
-                    "tag": "p",
-                    "children": [processedParagraph]
-                ])
+                // Проверяем, есть ли жирный текст **текст**
+                if processedParagraph.contains("**") {
+                    // Создаём структурированный HTML с поддержкой жирного текста
+                    let paragraphChildren = parseBoldText(processedParagraph)
+                    htmlArray.append([
+                        "tag": "p",
+                        "children": paragraphChildren
+                    ])
+                } else {
+                    // Обычный абзац без форматирования
+                    htmlArray.append([
+                        "tag": "p",
+                        "children": [processedParagraph]
+                    ])
+                }
             }
         }
         
@@ -329,6 +335,46 @@ final class TelegraphPublisher: TelegraphPublisherProtocol {
         }
         
         return htmlArray
+    }
+    
+    /// Парсит текст с жирным выделением **текст** в структурированный HTML для Telegraph
+    private func parseBoldText(_ text: String) -> [Any] {
+        var children: [Any] = []
+        let pattern = "\\*\\*([^*]+)\\*\\*"
+        let regex = try! NSRegularExpression(pattern: pattern, options: [])
+        let matches = regex.matches(in: text, options: [], range: NSRange(location: 0, length: text.utf16.count))
+        
+        var lastIndex = 0
+        
+        for match in matches {
+            // Добавляем текст до жирного выделения
+            if match.range.location > lastIndex {
+                let beforeRange = NSRange(location: lastIndex, length: match.range.location - lastIndex)
+                let beforeText = (text as NSString).substring(with: beforeRange)
+                if !beforeText.isEmpty {
+                    children.append(beforeText)
+                }
+            }
+            
+            // Добавляем жирный текст
+            let boldText = (text as NSString).substring(with: match.range(at: 1))
+            children.append([
+                "tag": "strong",
+                "children": [boldText]
+            ])
+            
+            lastIndex = match.range.location + match.range.length
+        }
+        
+        // Добавляем оставшийся текст
+        if lastIndex < text.utf16.count {
+            let remainingText = (text as NSString).substring(from: lastIndex)
+            if !remainingText.isEmpty {
+                children.append(remainingText)
+            }
+        }
+        
+        return children
     }
 }
 

@@ -192,7 +192,7 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
         let content = post.shortPost ?? post.fullPost ?? ""
         if maxBodyLength > 100 && !content.isEmpty {
             let bodyPreview = smartTruncate(content, maxLength: maxBodyLength)
-            caption += "\n\n\(bodyPreview)"
+        caption += "\n\n\(bodyPreview)"
         }
         
         return caption
