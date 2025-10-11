@@ -111,11 +111,6 @@ func routes(_ app: Application) throws {
         logger: logger
     )
     
-    let notifier = TelegramNotifier(
-        client: app.client,
-        logger: logger
-    )
-    
     // Publisher (только Telegram Channel)
     let publisher = TelegramChannelPublisher(
         client: app.client,
@@ -133,21 +128,15 @@ func routes(_ app: Application) throws {
         publisher: publisher as ZenPublisherProtocol
     )
     
-    // Запуск Long Polling для Telegram бота (только если включено)
-    // На Railway отключаем - используем только REST API генерации
-    if AppConfig.enableTelegramPolling {
-        let pollingService = TelegramPollingService(
-            app: app,
-            controller: telegramBotController
-        )
-        
-        app.lifecycle.use(
-            TelegramPollingLifecycleHandler(pollingService: pollingService)
-        )
-        app.logger.info("🤖 Telegram Polling включён")
-    } else {
-        app.logger.info("🤖 Telegram Polling отключён (используем REST API)")
-    }
+    // Запуск Long Polling для Telegram бота
+    let pollingService = TelegramPollingService(
+        app: app,
+        controller: telegramBotController
+    )
+    
+    app.lifecycle.use(
+        TelegramPollingLifecycleHandler(pollingService: pollingService)
+    )
     
     try generationController.boot(routes: app)
     
