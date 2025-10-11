@@ -24,8 +24,52 @@ final class TelegramPollingService {
         app.logger.info("🚀 Запуск Telegram Long Polling...")
         
         Task {
+            // Перед стартом: удаляем webhook и очищаем pending updates
+            await initializePolling()
             await pollForUpdates()
         }
+    }
+    
+    /// Инициализация polling: удаление webhook и очистка updates
+    private func initializePolling() async {
+        do {
+            // 1. Удаляем webhook (если был установлен)
+            app.logger.info("🔧 Удаляю webhook (если был)...")
+            try await deleteWebhook()
+            
+            // 2. Очищаем pending updates (решает 409 Conflict)
+            app.logger.info("🔧 Очищаю pending updates...")
+            let pendingUpdates = try await getUpdates()
+            if !pendingUpdates.isEmpty {
+                offset = pendingUpdates.last!.updateId + 1
+                app.logger.info("✅ Очищено \(pendingUpdates.count) pending updates")
+            }
+            
+            app.logger.info("✅ Polling инициализирован успешно")
+        } catch {
+            app.logger.error("❌ Ошибка инициализации polling: \(error)")
+        }
+    }
+    
+    /// Удаляет webhook
+    private func deleteWebhook() async throws {
+        let url = URI(string: "https://api.telegram.org/bot\(botToken)/deleteWebhook")
+        
+        var request = ClientRequest(method: .POST, url: url)
+        request.headers.add(name: .contentType, value: "application/json")
+        
+        let body: [String: Any] = ["drop_pending_updates": true]
+        let data = try JSONSerialization.data(withJSONObject: body)
+        request.body = .init(data: data)
+        
+        let response = try await client.send(request)
+        
+        guard response.status == .ok else {
+            app.logger.warning("⚠️ Не удалось удалить webhook: \(response.status)")
+            return
+        }
+        
+        app.logger.info("✅ Webhook удалён")
     }
     
     func stop() {
