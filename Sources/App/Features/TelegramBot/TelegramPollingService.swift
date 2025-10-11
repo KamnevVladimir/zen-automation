@@ -33,21 +33,71 @@ final class TelegramPollingService {
     /// Инициализация polling: удаление webhook и очистка updates
     private func initializePolling() async {
         do {
+            // 0. Проверяем текущий статус webhook
+            app.logger.info("🔍 Проверяю статус webhook...")
+            try await getWebhookInfo()
+            
             // 1. Удаляем webhook (если был установлен)
-            app.logger.info("🔧 Удаляю webhook (если был)...")
+            app.logger.info("🔧 Удаляю webhook и pending updates...")
             try await deleteWebhook()
             
-            // 2. Очищаем pending updates (решает 409 Conflict)
-            app.logger.info("🔧 Очищаю pending updates...")
-            let pendingUpdates = try await getUpdates()
-            if !pendingUpdates.isEmpty {
-                offset = pendingUpdates.last!.updateId + 1
-                app.logger.info("✅ Очищено \(pendingUpdates.count) pending updates")
-            }
+            // Пауза после удаления webhook
+            try await Task.sleep(nanoseconds: 2_000_000_000) // 2 секунды
+            
+            // 2. Проверяем что webhook удалён
+            app.logger.info("🔍 Проверяю что webhook удалён...")
+            try await getWebhookInfo()
             
             app.logger.info("✅ Polling инициализирован успешно")
         } catch {
             app.logger.error("❌ Ошибка инициализации polling: \(error)")
+        }
+    }
+    
+    /// Проверяет информацию о webhook
+    private func getWebhookInfo() async throws {
+        let url = URI(string: "https://api.telegram.org/bot\(botToken)/getWebhookInfo")
+        
+        var request = ClientRequest(method: .GET, url: url)
+        let response = try await client.send(request)
+        
+        guard response.status == .ok else {
+            app.logger.error("❌ Не удалось получить webhook info: \(response.status)")
+            return
+        }
+        
+        struct WebhookInfoResponse: Codable {
+            let ok: Bool
+            let result: WebhookInfo
+            
+            struct WebhookInfo: Codable {
+                let url: String
+                let hasCustomCertificate: Bool
+                let pendingUpdateCount: Int
+                let lastErrorDate: Int?
+                let lastErrorMessage: String?
+                
+                enum CodingKeys: String, CodingKey {
+                    case url
+                    case hasCustomCertificate = "has_custom_certificate"
+                    case pendingUpdateCount = "pending_update_count"
+                    case lastErrorDate = "last_error_date"
+                    case lastErrorMessage = "last_error_message"
+                }
+            }
+        }
+        
+        if let webhookInfo = try? response.content.decode(WebhookInfoResponse.self) {
+            if webhookInfo.result.url.isEmpty {
+                app.logger.info("✅ Webhook НЕ установлен (polling доступен)")
+            } else {
+                app.logger.warning("⚠️ WEBHOOK УСТАНОВЛЕН: \(webhookInfo.result.url)")
+                app.logger.warning("   Pending updates: \(webhookInfo.result.pendingUpdateCount)")
+            }
+            
+            if let lastError = webhookInfo.result.lastErrorMessage {
+                app.logger.warning("   Last error: \(lastError)")
+            }
         }
     }
     
@@ -125,7 +175,11 @@ final class TelegramPollingService {
         let response = try await client.send(request)
         
         guard response.status == .ok else {
-            throw Abort(.internalServerError, reason: "Telegram API error: \(response.status)")
+            let errorBody = response.body.map { String(buffer: $0) } ?? "No error body"
+            app.logger.error("❌ Telegram getUpdates error!")
+            app.logger.error("   Status: \(response.status.code) \(response.status.reasonPhrase)")
+            app.logger.error("   Body: \(errorBody)")
+            throw Abort(.internalServerError, reason: "Telegram API error: \(response.status) - \(errorBody)")
         }
         
         struct TelegramResponse: Content {

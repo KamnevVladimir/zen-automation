@@ -43,9 +43,10 @@ struct AppConfig {
     }
     
     // Включить Telegram Polling
-    // Включено по умолчанию для работы бота
+    // По умолчанию ВЫКЛЮЧЕНО (для Railway)
+    // Включить локально: ENABLE_TELEGRAM_POLLING=true
     static var enableTelegramPolling: Bool {
-        Environment.get("ENABLE_TELEGRAM_POLLING") != "false"
+        Environment.get("ENABLE_TELEGRAM_POLLING") == "true"
     }
     
     // Bot Integration
