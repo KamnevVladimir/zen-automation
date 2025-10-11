@@ -64,7 +64,6 @@ final class ContentGeneratorService: ContentGeneratorServiceProtocol {
         let body = json["body"] as? String ?? ""
         let tags = json["tags"] as? [String] ?? []
         let metaDescription = json["meta_description"] as? String
-        let imagePrompts = json["image_prompts"] as? [String] ?? []
         let estimatedReadTime = json["estimated_read_time"] as? Int ?? 5
         
         // Анализируем вирусный потенциал заголовка
@@ -90,8 +89,14 @@ final class ContentGeneratorService: ContentGeneratorServiceProtocol {
         }
         logger.info("✅ Контент валиден (score: \(validationResult.score))")
         
-        // 4. Генерация изображений
-        let imageURLs = try await generateImages(prompts: imagePrompts)
+        // 4. Генерация изображений (используем наши английские промпты, не от Claude)
+        let englishImagePrompts = [
+            ContentPrompt.buildImagePrompt(for: title, position: 0),
+            ContentPrompt.buildImagePrompt(for: title, position: 1)
+        ]
+        
+        logger.info("🎨 Генерирую изображения с профессиональными промптами на английском")
+        let imageURLs = try await generateImages(prompts: englishImagePrompts)
         logger.info("✅ Изображения сгенерированы: \(imageURLs.count) шт")
         
         // 5. Сохранение в БД с оптимизированными тегами
@@ -112,7 +117,7 @@ final class ContentGeneratorService: ContentGeneratorServiceProtocol {
             let image = ZenImageModel(
                 postId: post.id!,
                 url: imageURL,
-                prompt: imagePrompts[safe: index] ?? "",
+                prompt: englishImagePrompts[safe: index] ?? "",
                 position: index
             )
             try await image.save(on: db)
