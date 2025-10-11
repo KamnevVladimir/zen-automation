@@ -2,7 +2,7 @@ import Vapor
 import Foundation
 
 /// Сервис для публикации постов в Telegraph
-final class TelegraphPublisher {
+final class TelegraphPublisher: TelegraphPublisherProtocol {
     private let client: Client
     private let logger: Logger
     
