@@ -193,24 +193,19 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
     }
     
     /// Форматирует короткий пост от AI + добавляет ссылку на Telegraph
+    /// 
+    /// ВАЖНО: По документации Дзена (https://dzen.ru/help/ru/channel/cross-platform.html):
+    /// - Первое предложение (до точки) = заголовок в Дзене (макс 140 символов)
+    /// - Форматирование из Telegram НЕ переносится в Дзен
+    /// - Первая картинка = обложка статьи
     private func formatShortContentFromAI(post: ZenPostModel, telegraphURL: String) -> String {
-        var content = ""
-        
-        // Добавляем заголовок жирным
-        let title = post.title.prefix(1).uppercased() + post.title.dropFirst()
-        content += "**\(title)**"
-        
-        if let subtitle = post.subtitle, !subtitle.isEmpty {
-            let sub = subtitle.prefix(1).uppercased() + subtitle.dropFirst()
-            content += "\n\n\(sub)"
-        }
-        
-        // Добавляем короткий пост от AI
+        // AI уже генерирует короткий пост с правильной структурой:
+        // Первое предложение = заголовок для Дзена
         let aiShortPost = post.shortPost ?? post.body
-        content += "\n\n\(aiShortPost)"
         
-        // Добавляем призыв прочитать полную статью в конце
-        content += "\n\n📖 Подробная статья со всеми деталями:\n\(telegraphURL)"
+        // Добавляем только ссылку на полную статью в конце
+        var content = aiShortPost
+        content += "\n\n📖 Читать полную статью с деталями:\n\(telegraphURL)"
         
         return content
     }
