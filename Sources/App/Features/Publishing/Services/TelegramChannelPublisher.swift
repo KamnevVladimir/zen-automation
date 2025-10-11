@@ -31,15 +31,39 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
         logger.info("📤 Публикация в Telegram канал: \(channelId)")
         
         do {
-            // 1. Публикуем основное изображение (если есть)
+            // Форматируем полный контент
+            let fullContent = formatFullContent(post: post)
+            
+            // 1. Публикуем основное изображение с caption (первые 1024 символа)
             if let mainImage = images.first(where: { $0.position == 0 }) {
-                try await sendPhoto(url: mainImage.url, caption: formatCaption(post: post))
+                let caption = formatCaption(post: post)
+                try await sendPhoto(url: mainImage.url, caption: caption)
+                
+                // 2. Если контент длиннее 1024 - отправляем продолжение текстом
+                let captionAfterMarkdown = convertMarkdownToHTML(caption).count
+                if fullContent.count > captionAfterMarkdown {
+                    let remainingContent = String(fullContent.dropFirst(captionAfterMarkdown))
+                    
+                    // Отправляем по частям если нужно (Telegram лимит 4096)
+                    let chunks = splitIntoChunks(remainingContent, maxLength: 4000)
+                    for chunk in chunks {
+                        try await sendMessage(text: chunk)
+                        // Небольшая пауза между сообщениями
+                        try await Task.sleep(nanoseconds: 500_000_000) // 0.5 сек
+                    }
+                }
             } else {
-                // Если нет изображения - просто текст
-                try await sendMessage(text: formatMessage(post: post))
+                // Если нет изображения - отправляем только текст по частям
+                let chunks = splitIntoChunks(fullContent, maxLength: 4000)
+                for chunk in chunks {
+                    try await sendMessage(text: chunk)
+                    if chunks.count > 1 {
+                        try await Task.sleep(nanoseconds: 500_000_000) // 0.5 сек
+                    }
+                }
             }
             
-        // 2. Обновляем статус поста
+        // 3. Обновляем статус поста
         post.status = .published
         post.publishedAt = Date()
         post.zenArticleId = "tg_\(UUID().uuidString.prefix(12))"
@@ -129,7 +153,7 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
     }
     
     private func formatCaption(post: ZenPostModel) -> String {
-        // Telegram caption лимит: 1024 символа
+        // Telegram caption СТРОГИЙ лимит: 1024 символа
         var caption = ""
         
         // Заголовок жирным с заглавной буквы
@@ -137,44 +161,106 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
         caption += "**\(title)**"
         
         if let subtitle = post.subtitle, !subtitle.isEmpty {
-            caption += "\n\n\(subtitle)"
+            let sub = subtitle.prefix(1).uppercased() + subtitle.dropFirst()
+            caption += "\n\n\(sub)"
         }
         
-        // Добавляем максимум текста (Telegram caption лимит 1024)
-        caption += "\n\n\(post.body)"
+        // Считаем сколько символов уже занято
+        let headerLength = caption.count + 4 // +4 на \n\n
+        let maxBodyLength = 1024 - headerLength - 10 // -10 на ... и запас
         
-        // Telegram обрежет автоматически на 1024, но на всякий случай
-        if caption.count > 1020 {
-            caption = String(caption.prefix(1020)) + "..."
+        // Добавляем начало body (умно обрезаем по предложениям)
+        if maxBodyLength > 100 {
+            let bodyPreview = smartTruncate(post.body, maxLength: maxBodyLength)
+            caption += "\n\n\(bodyPreview)"
         }
         
         return caption
     }
     
-    private func formatMessage(post: ZenPostModel) -> String {
-        // Telegram message лимит: 4096 символов
-        var message = ""
+    /// Форматирует полный контент для публикации (весь текст)
+    private func formatFullContent(post: ZenPostModel) -> String {
+        var content = ""
         
         // Заголовок жирным с заглавной буквы
         let title = post.title.prefix(1).uppercased() + post.title.dropFirst()
-        message += "**\(title)**"
+        content += "**\(title)**"
         
         if let subtitle = post.subtitle, !subtitle.isEmpty {
-            message += "\n\n\(subtitle)"
+            let sub = subtitle.prefix(1).uppercased() + subtitle.dropFirst()
+            content += "\n\n\(sub)"
         }
         
-        // Добавляем максимум текста (Telegram message лимит 4096)
-        message += "\n\n\(post.body)"
+        // Весь body
+        content += "\n\n\(post.body)"
         
         // Хештеги в конце
-        message += "\n\n#путешествия #дешевыеполеты #отпуск"
+        content += "\n\n#путешествия #дешевыеполеты #отпуск"
         
-        // Telegram обрежет автоматически на 4096
-        if message.count > 4090 {
-            message = String(message.prefix(4090)) + "..."
+        return content
+    }
+    
+    /// Разбивает текст на части по maxLength, умно (по предложениям)
+    private func splitIntoChunks(_ text: String, maxLength: Int) -> [String] {
+        if text.count <= maxLength {
+            return [text]
         }
         
-        return message
+        var chunks: [String] = []
+        var remaining = text
+        
+        while !remaining.isEmpty {
+            if remaining.count <= maxLength {
+                chunks.append(remaining)
+                break
+            }
+            
+            // Берём кусок с запасом
+            let chunk = String(remaining.prefix(maxLength - 3))
+            
+            // Ищем последнюю точку, восклицательный или вопросительный знак
+            if let lastSentenceEnd = chunk.lastIndex(where: { $0 == "." || $0 == "!" || $0 == "?" }) {
+                let chunkText = String(chunk[...lastSentenceEnd])
+                chunks.append(chunkText)
+                remaining = String(remaining.dropFirst(chunkText.count))
+            } else if let lastSpace = chunk.lastIndex(of: " ") {
+                // Если нет - обрезаем по последнему пробелу
+                let chunkText = String(chunk[...lastSpace])
+                chunks.append(chunkText)
+                remaining = String(remaining.dropFirst(chunkText.count))
+            } else {
+                // В крайнем случае - просто обрезаем
+                chunks.append(chunk)
+                remaining = String(remaining.dropFirst(chunk.count))
+            }
+            
+            // Убираем пробелы в начале следующего куска
+            remaining = remaining.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        
+        return chunks
+    }
+    
+    /// Умное обрезание текста по последнему полному предложению
+    private func smartTruncate(_ text: String, maxLength: Int) -> String {
+        if text.count <= maxLength {
+            return text
+        }
+        
+        // Обрезаем с запасом
+        let truncated = String(text.prefix(maxLength - 3))
+        
+        // Ищем последнюю точку, восклицательный или вопросительный знак
+        if let lastSentenceEnd = truncated.lastIndex(where: { $0 == "." || $0 == "!" || $0 == "?" }) {
+            return String(truncated[...lastSentenceEnd])
+        }
+        
+        // Если нет - обрезаем по последнему пробелу
+        if let lastSpace = truncated.lastIndex(of: " ") {
+            return String(truncated[...lastSpace]) + "..."
+        }
+        
+        return truncated + "..."
     }
     
     /// Конвертирует Markdown (**bold**) в HTML (<b>bold</b>) для Telegram

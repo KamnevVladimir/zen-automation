@@ -42,6 +42,12 @@ struct AppConfig {
         Int(Environment.get("TELEGRAM_ADMIN_USER_ID") ?? "434250421") ?? 434250421
     }
     
+    // Включить Telegram Polling (для локальной разработки)
+    // На Railway отключаем (используем только REST API)
+    static var enableTelegramPolling: Bool {
+        Environment.get("ENABLE_TELEGRAM_POLLING") == "true"
+    }
+    
     // Bot Integration
     static var botUsername: String {
         Environment.get("BOT_USERNAME") ?? "gdeVacationBot"
