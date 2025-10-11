@@ -10,6 +10,10 @@ final class TelegramPollingService {
     private var offset: Int = 0
     private var isRunning = false
     
+    // Глобальный счетчик активных инстансов для защиты от 409 Conflict
+    private static var activeInstances: Int = 0
+    private static let instanceLock = NSLock()
+    
     init(app: Application, controller: TelegramBotController) {
         self.app = app
         self.client = app.client
@@ -18,10 +22,25 @@ final class TelegramPollingService {
     }
     
     func start() {
-        guard !isRunning else { return }
+        guard !isRunning else {
+            app.logger.warning("⚠️ Polling уже запущен в этом процессе")
+            return
+        }
+        
+        // Проверяем количество активных инстансов
+        Self.instanceLock.lock()
+        let currentInstances = Self.activeInstances
+        Self.activeInstances += 1
+        Self.instanceLock.unlock()
+        
+        if currentInstances > 0 {
+            app.logger.warning("⚠️ Обнаружено \(currentInstances + 1) активных инстансов polling!")
+            app.logger.warning("⚠️ Это может вызвать 409 Conflict. Проверьте Railway на дублирование процессов.")
+        }
+        
         isRunning = true
         
-        app.logger.info("🚀 Запуск Telegram Long Polling...")
+        app.logger.info("🚀 Запуск Telegram Long Polling... (инстанс #\(currentInstances + 1))")
         
         Task {
             // Перед стартом: удаляем webhook и очищаем pending updates
@@ -64,8 +83,17 @@ final class TelegramPollingService {
     }
     
     func stop() {
+        guard isRunning else { return }
+        
         isRunning = false
-        app.logger.info("⏹️ Остановка Telegram Long Polling")
+        
+        // Уменьшаем счетчик активных инстансов
+        Self.instanceLock.lock()
+        Self.activeInstances = max(0, Self.activeInstances - 1)
+        let remaining = Self.activeInstances
+        Self.instanceLock.unlock()
+        
+        app.logger.info("⏹️ Остановка Telegram Long Polling (осталось инстансов: \(remaining))")
     }
     
     private func pollForUpdates() async {
@@ -88,8 +116,19 @@ final class TelegramPollingService {
                 // Более мягкая обработка ошибок - не падаем, а логируем и продолжаем
                 if isRunning {  // Только если не идет shutdown
                     app.logger.warning("⚠️ Ошибка polling (продолжаем работу): \(error)")
-                    // Пауза при ошибке
-                    try? await Task.sleep(nanoseconds: 5_000_000_000) // 5 секунд
+                    
+                    // Проверяем тип ошибки
+                    let is409Error = "\(error)".contains("409") || "\(error)".contains("Conflict")
+                    
+                    if is409Error {
+                        app.logger.error("🚨 Обнаружен 409 Conflict! Возможно запущено несколько инстансов.")
+                        app.logger.error("💡 Решение: убедитесь что на Railway запущена только одна реплика.")
+                        // Увеличенная пауза при 409
+                        try? await Task.sleep(nanoseconds: 30_000_000_000) // 30 секунд
+                    } else {
+                        // Обычная пауза при других ошибках
+                        try? await Task.sleep(nanoseconds: 5_000_000_000) // 5 секунд
+                    }
                 } else {
                     app.logger.info("ℹ️ Polling остановлен во время shutdown")
                     break

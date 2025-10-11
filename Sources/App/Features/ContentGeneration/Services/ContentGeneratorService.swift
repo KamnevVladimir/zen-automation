@@ -61,8 +61,7 @@ final class ContentGeneratorService: ContentGeneratorServiceProtocol {
         
         let title = json["title"] as? String ?? "Без названия"
         let subtitle = json["subtitle"] as? String
-        let body = json["body"] as? String ?? ""
-        let tags = json["tags"] as? [String] ?? []
+        let body = json["body"] as? String ?? "" // Старое поле, оставлено для совместимости
         let metaDescription = json["meta_description"] as? String
         let imagePromptsEnglish = json["image_prompts_english"] as? [String] ?? []
         let estimatedReadTime = json["estimated_read_time"] as? Int ?? 5
@@ -88,8 +87,8 @@ final class ContentGeneratorService: ContentGeneratorServiceProtocol {
             category: request.templateType
         )
         
-        // 3. Валидация контента (используем оптимизированные теги)
-        let validationResult = validator.validate(body: body, tags: optimizedTags)
+        // 3. Валидация контента - ВАЖНО: валидируем fullPost, а не старое поле body!
+        let validationResult = validator.validate(body: fullPost, tags: optimizedTags)
         if !validationResult.isValid {
             logger.warning("⚠️ Контент не прошёл валидацию: \(validationResult.issues.joined(separator: ", "))")
             throw Abort(.badRequest, reason: "Контент не прошёл валидацию")
