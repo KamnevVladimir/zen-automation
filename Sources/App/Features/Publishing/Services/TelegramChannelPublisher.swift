@@ -233,8 +233,9 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
         }
         
         // Добавляем ссылку на бота и полную статью
-        let botLink = "🤖 [@gdeVacationBot](https://t.me/gdeVacationBot) - поиск дешёвых билетов"
-        let fullArticleLink = "📖 [Читать полную статью с деталями](\(telegraphURL))"
+        // ОПТИМИЗАЦИЯ ДЛЯ ЯНДЕКС ДЗЕНА: простые ссылки без Markdown
+        let botLink = "🤖 @gdeVacationBot - поиск дешёвых билетов"
+        let fullArticleLink = "📖 Полная статья: \(telegraphURL)"
         
         // Рассчитываем РЕАЛЬНУЮ длину ссылок (Telegraph URL может быть очень длинным!)
         let linksText = "\n\n\(botLink)\n\(fullArticleLink)"

@@ -221,29 +221,80 @@ final class TelegraphPublisher: TelegraphPublisherProtocol {
             ])
         }
         
-        // 2. Обрабатываем контент
-        var processedContent = content
+        // 2. Обрабатываем контент - разбиваем на абзацы
+        let paragraphs = content.components(separatedBy: "\n\n")
+        var listItems: [String] = []
         
-        // Заменяем **жирный** на <b>жирный</b>
-        let boldRegex = try! NSRegularExpression(pattern: "\\*\\*([^*]+)\\*\\*", options: [])
-        let range = NSRange(location: 0, length: processedContent.utf16.count)
-        processedContent = boldRegex.stringByReplacingMatches(in: processedContent, options: [], range: range, withTemplate: "<b>$1</b>")
+        for paragraph in paragraphs {
+            let trimmedParagraph = paragraph.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmedParagraph.isEmpty {
+                continue
+            }
+            
+            // Проверяем, является ли это списком (начинается с эмодзи)
+            if trimmedParagraph.hasPrefix("⚡️ ") || trimmedParagraph.hasPrefix("🎯 ") || 
+               trimmedParagraph.hasPrefix("✈️ ") || trimmedParagraph.hasPrefix("💰 ") || 
+               trimmedParagraph.hasPrefix("📍 ") {
+                
+                // Добавляем в список
+                let listItemText = trimmedParagraph
+                    .replacingOccurrences(of: "⚡️ ", with: "")
+                    .replacingOccurrences(of: "🎯 ", with: "")
+                    .replacingOccurrences(of: "✈️ ", with: "")
+                    .replacingOccurrences(of: "💰 ", with: "")
+                    .replacingOccurrences(of: "📍 ", with: "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                
+                listItems.append(listItemText)
+            } else {
+                // Если есть накопленные элементы списка, создаём список
+                if !listItems.isEmpty {
+                    let listChildren = listItems.map { item in
+                        [
+                            "tag": "li",
+                            "children": [item]
+                        ]
+                    }
+                    
+                    htmlArray.append([
+                        "tag": "ul",
+                        "children": listChildren
+                    ])
+                    listItems.removeAll()
+                }
+                
+                // Обычный абзац
+                var processedParagraph = trimmedParagraph
+                
+                // Заменяем **жирный** на <b>жирный</b>
+                let boldRegex = try! NSRegularExpression(pattern: "\\*\\*([^*]+)\\*\\*", options: [])
+                let range = NSRange(location: 0, length: processedParagraph.utf16.count)
+                processedParagraph = boldRegex.stringByReplacingMatches(in: processedParagraph, options: [], range: range, withTemplate: "<b>$1</b>")
+                
+                // Заменяем одинарные переносы строк на пробелы
+                processedParagraph = processedParagraph.replacingOccurrences(of: "\n", with: " ")
+                
+                htmlArray.append([
+                    "tag": "p",
+                    "children": [processedParagraph]
+                ])
+            }
+        }
         
-        // Заменяем эмодзи маркеры на HTML списки (убираем эмодзи, оставляем bullet points)
-        processedContent = processedContent.replacingOccurrences(of: "⚡️ ", with: "<br>• ")
-        processedContent = processedContent.replacingOccurrences(of: "🎯 ", with: "<br>• ")
-        processedContent = processedContent.replacingOccurrences(of: "✈️ ", with: "<br>• ")
-        processedContent = processedContent.replacingOccurrences(of: "💰 ", with: "<br>• ")
-        processedContent = processedContent.replacingOccurrences(of: "📍 ", with: "<br>• ")
-        
-        // Заменяем переносы строк на <br>
-        processedContent = processedContent.replacingOccurrences(of: "\n", with: "<br>")
-        
-        // 3. Добавляем текст как HTML элемент
-        htmlArray.append([
-            "tag": "p",
-            "children": [processedContent]
-        ])
+        // Если остались элементы списка в конце, создаём список
+        if !listItems.isEmpty {
+            let listChildren = listItems.map { item in
+                [
+                    "tag": "li",
+                    "children": [item]
+                ]
+            }
+            
+            htmlArray.append([
+                "tag": "ul",
+                "children": listChildren
+            ])
+        }
         
         // 3.5. Добавляем ссылку на бота в конце
         htmlArray.append([
