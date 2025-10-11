@@ -71,11 +71,14 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
         var request = ClientRequest(method: .POST, url: apiUrl)
         request.headers.add(name: .contentType, value: "application/json")
         
+        // Конвертируем Markdown в HTML для Telegram
+        let htmlCaption = convertMarkdownToHTML(caption)
+        
         let body: [String: Any] = [
             "chat_id": channelId,
             "photo": url,
-            "caption": caption.truncate(to: 1024, addEllipsis: true)
-            // Без parse_mode: Дзен не переносит форматирование
+            "caption": htmlCaption,
+            "parse_mode": "HTML"
         ]
         
         let data = try JSONSerialization.data(withJSONObject: body)
@@ -105,11 +108,14 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
         var request = ClientRequest(method: .POST, url: apiUrl)
         request.headers.add(name: .contentType, value: "application/json")
         
+        // Конвертируем Markdown в HTML для Telegram
+        let htmlText = convertMarkdownToHTML(text)
+        
         let body: [String: Any] = [
             "chat_id": channelId,
-            "text": text.truncate(to: 4096, addEllipsis: true),
+            "text": htmlText,
+            "parse_mode": "HTML",
             "disable_web_page_preview": false
-            // Без parse_mode: Дзен не переносит форматирование
         ]
         
         let data = try JSONSerialization.data(withJSONObject: body)
@@ -123,48 +129,76 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
     }
     
     private func formatCaption(post: ZenPostModel) -> String {
-        // ВАЖНО: Дзен использует ПЕРВОЕ ПРЕДЛОЖЕНИЕ как заголовок (макс 140 символов)
-        // и НЕ переносит форматирование! Поэтому первое предложение БЕЗ HTML тегов.
-        let firstSentence = post.title.truncate(to: 140, addEllipsis: false)
+        // Telegram caption лимит: 1024 символа
+        var caption = ""
         
-        var caption = firstSentence
+        // Заголовок жирным с заглавной буквы
+        let title = post.title.prefix(1).uppercased() + post.title.dropFirst()
+        caption += "**\(title)**"
         
         if let subtitle = post.subtitle, !subtitle.isEmpty {
             caption += "\n\n\(subtitle)"
         }
         
-        // Добавляем начало тела статьи
-        let bodyPreview = post.body
-            .replacingOccurrences(of: "\n\n", with: "\n")
-            .truncate(to: 600, addEllipsis: true)
+        // Добавляем максимум текста (Telegram caption лимит 1024)
+        caption += "\n\n\(post.body)"
         
-        caption += "\n\n\(bodyPreview)"
+        // Telegram обрежет автоматически на 1024, но на всякий случай
+        if caption.count > 1020 {
+            caption = String(caption.prefix(1020)) + "..."
+        }
         
         return caption
     }
     
     private func formatMessage(post: ZenPostModel) -> String {
-        // ВАЖНО: Дзен использует ПЕРВОЕ ПРЕДЛОЖЕНИЕ как заголовок (макс 140 символов)
-        // и НЕ переносит форматирование! Поэтому первое предложение БЕЗ HTML тегов.
-        let firstSentence = post.title.truncate(to: 140, addEllipsis: false)
+        // Telegram message лимит: 4096 символов
+        var message = ""
         
-        var message = firstSentence
+        // Заголовок жирным с заглавной буквы
+        let title = post.title.prefix(1).uppercased() + post.title.dropFirst()
+        message += "**\(title)**"
         
         if let subtitle = post.subtitle, !subtitle.isEmpty {
             message += "\n\n\(subtitle)"
         }
         
-        // Добавляем тело статьи
-        let bodyText = post.body
-            .replacingOccurrences(of: "\n\n", with: "\n")
-            .truncate(to: 3600, addEllipsis: true)
-        
-        message += "\n\n\(bodyText)"
+        // Добавляем максимум текста (Telegram message лимит 4096)
+        message += "\n\n\(post.body)"
         
         // Хештеги в конце
         message += "\n\n#путешествия #дешевыеполеты #отпуск"
         
+        // Telegram обрежет автоматически на 4096
+        if message.count > 4090 {
+            message = String(message.prefix(4090)) + "..."
+        }
+        
         return message
+    }
+    
+    /// Конвертирует Markdown (**bold**) в HTML (<b>bold</b>) для Telegram
+    private func convertMarkdownToHTML(_ text: String) -> String {
+        var result = text
+        
+        // 1. Сначала экранируем HTML символы (кроме < > для будущих тегов)
+        result = result.replacingOccurrences(of: "&", with: "&amp;")
+        
+        // 2. **bold** → <b>bold</b>
+        result = result.replacingOccurrences(
+            of: "\\*\\*(.+?)\\*\\*",
+            with: "<b>$1</b>",
+            options: .regularExpression
+        )
+        
+        // 3. Заменяем маркеры списков на точки
+        result = result.replacingOccurrences(of: "⚡️ ", with: "• ")
+        result = result.replacingOccurrences(of: "🎯 ", with: "• ")
+        result = result.replacingOccurrences(of: "✈️ ", with: "• ")
+        result = result.replacingOccurrences(of: "💰 ", with: "• ")
+        result = result.replacingOccurrences(of: "📍 ", with: "• ")
+        
+        return result
     }
 }
 
