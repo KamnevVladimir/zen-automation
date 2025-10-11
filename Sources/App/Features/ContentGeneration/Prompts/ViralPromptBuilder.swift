@@ -95,12 +95,20 @@ struct ViralPromptBuilder {
           "cta": "Конкретный призыв к действию в конце",
           "tags": ["тег1", "тег2", "тег3", "тег4", "тег5"],
           "meta_description": "SEO-описание с крючком (до 160 символов)",
+          "image_prompts_english": [
+            "ENGLISH: Photorealistic travel photo prompt for main image",
+            "ENGLISH: Photorealistic travel photo prompt for second image"
+          ],
           "estimated_read_time": 5,
           "viral_score_prediction": 0.85,
           "target_emotion": "любопытство|восхищение|удивление"
         }
         
-        ВАЖНО: Изображения генерируются автоматически, НЕ нужно включать "image_prompts" в JSON!
+        ⚠️ КРИТИЧЕСКИ ВАЖНО ДЛЯ image_prompts_english:
+        - Промпты СТРОГО НА АНГЛИЙСКОМ языке (не на русском!)
+        - Описывают конкретные места/сцены из твоей статьи
+        - Photorealistic style, authentic travel photography
+        - Примеры: "Aerial view of Istanbul Bosphorus at golden hour", "Bustling street market in Yerevan with local food stalls"
         
         🎯 ЦЕЛЕВЫЕ МЕТРИКИ:
         - Дочитываемость: >60%

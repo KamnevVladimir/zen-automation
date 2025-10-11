@@ -64,7 +64,10 @@ final class ContentGeneratorService: ContentGeneratorServiceProtocol {
         let body = json["body"] as? String ?? ""
         let tags = json["tags"] as? [String] ?? []
         let metaDescription = json["meta_description"] as? String
+        let imagePromptsEnglish = json["image_prompts_english"] as? [String] ?? []
         let estimatedReadTime = json["estimated_read_time"] as? Int ?? 5
+        
+        logger.info("📸 Получены английские промпты для изображений: \(imagePromptsEnglish.count) шт")
         
         // Анализируем вирусный потенциал заголовка
         let viralScore = viralOptimizer.analyzeTitle(title)
@@ -89,14 +92,9 @@ final class ContentGeneratorService: ContentGeneratorServiceProtocol {
         }
         logger.info("✅ Контент валиден (score: \(validationResult.score))")
         
-        // 4. Генерация изображений (используем наши английские промпты, не от Claude)
-        let englishImagePrompts = [
-            ContentPrompt.buildImagePrompt(for: title, position: 0),
-            ContentPrompt.buildImagePrompt(for: title, position: 1)
-        ]
-        
-        logger.info("🎨 Генерирую изображения с профессиональными промптами на английском")
-        let imageURLs = try await generateImages(prompts: englishImagePrompts)
+        // 4. Генерация изображений (используем промпты от Claude на английском)
+        logger.info("🎨 Генерирую изображения по промптам от Claude (на английском)")
+        let imageURLs = try await generateImages(prompts: imagePromptsEnglish)
         logger.info("✅ Изображения сгенерированы: \(imageURLs.count) шт")
         
         // 5. Сохранение в БД с оптимизированными тегами
@@ -117,7 +115,7 @@ final class ContentGeneratorService: ContentGeneratorServiceProtocol {
             let image = ZenImageModel(
                 postId: post.id!,
                 url: imageURL,
-                prompt: englishImagePrompts[safe: index] ?? "",
+                prompt: imagePromptsEnglish[safe: index] ?? "",
                 position: index
             )
             try await image.save(on: db)
