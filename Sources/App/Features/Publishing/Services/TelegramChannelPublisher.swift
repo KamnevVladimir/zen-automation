@@ -8,8 +8,13 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
     private let channelId: String // Например: @your_channel
     private let logger: Logger
     private let telegraphPublisher: TelegraphPublisherProtocol
+    private let contentGenerator: ContentGeneratorServiceProtocol
     
-    init(client: Client, logger: Logger) {
+    init(
+        client: Client,
+        logger: Logger,
+        contentGenerator: ContentGeneratorServiceProtocol
+    ) {
         self.client = client
         self.botToken = AppConfig.telegramToken
         // Автоматически добавляем @ если его нет
@@ -17,6 +22,7 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
         self.channelId = rawChannelId.hasPrefix("@") ? rawChannelId : "@\(rawChannelId)"
         self.logger = logger
         self.telegraphPublisher = TelegraphPublisher(client: client, logger: logger)
+        self.contentGenerator = contentGenerator
     }
     
     func publish(post: ZenPostModel, db: Database) async throws -> PublishResult {
@@ -44,7 +50,7 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
             logger.info("✅ Telegraph страница создана: \(telegraphURL)")
             
             // 2. Используем короткий пост от AI + добавляем ссылку
-            let shortContent = formatShortContentFromAI(post: post, telegraphURL: telegraphURL)
+            let shortContent = try await formatShortContentFromAI(post: post, telegraphURL: telegraphURL)
             
             // 3. Публикуем короткий пост с главным фото
             if let mainImage = images.first(where: { $0.position == 0 }) {
@@ -213,15 +219,15 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
     }
     
     /// Форматирует короткий пост от AI + добавляет ссылку на Telegraph
-    /// 
+    ///
     /// ВАЖНО: По документации Дзена (https://dzen.ru/help/ru/channel/cross-platform.html):
     /// - Первое предложение (до точки) = заголовок в Дзене (макс 140 символов)
     /// - Форматирование из Telegram НЕ переносится в Дзен
     /// - Первая картинка = обложка статьи
-    private func formatShortContentFromAI(post: ZenPostModel, telegraphURL: String) -> String {
+    private func formatShortContentFromAI(post: ZenPostModel, telegraphURL: String) async throws -> String {
         // AI уже генерирует короткий пост с правильной структурой:
         // Первое предложение = заголовок для Дзена
-        guard let aiShortPost = post.shortPost, !aiShortPost.isEmpty else {
+        guard var aiShortPost = post.shortPost, !aiShortPost.isEmpty else {
             // Если shortPost пустой - ошибка генерации
             return "⚠️ Ошибка: короткий пост не сгенерирован\n\n📖 Читать полную статью:\n\(telegraphURL)"
         }
@@ -235,29 +241,49 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
         let linksLength = linksText.count
         
         // Telegram лимит для caption: 1024 символа
+        // Целевой размер: 900-1000 символов (по требованию пользователя)
         let maxCaptionLength = 1024
-        let maxContentLength = maxCaptionLength - linksLength - 10 // -10 на запас
+        let targetContentLength = 1000 - linksLength // ~800 символов для контента
+        let minContentLength = 900 - linksLength      // ~700 символов минимум
         
-        // Обрезаем основной контент если нужно
-        let finalContent: String
-        if aiShortPost.count > maxContentLength {
-            logger.warning("⚠️ ShortPost слишком длинный (\(aiShortPost.count) символов), обрезаю до \(maxContentLength)")
+        // Проверяем, нужно ли пересоздать короткий пост
+        var attempts = 0
+        let maxAttempts = 3
+        
+        while aiShortPost.count + linksLength > maxCaptionLength && attempts < maxAttempts {
+            attempts += 1
+            logger.warning("⚠️ ShortPost слишком длинный (\(aiShortPost.count + linksLength) символов > \(maxCaptionLength))")
+            logger.info("🔄 Попытка \(attempts)/\(maxAttempts): Запрашиваю у Claude более короткий вариант...")
             
-            // Обрезаем до нужной длины, стараясь не разрывать слова
-            let truncated = String(aiShortPost.prefix(maxContentLength))
-            if let lastSpaceIndex = truncated.lastIndex(of: " ") {
-                finalContent = String(truncated[..<lastSpaceIndex]) + "..."
-            } else {
-                finalContent = truncated + "..."
-            }
-        } else {
-            finalContent = aiShortPost
+            // Запрашиваем у Claude более короткий вариант
+            let fullPost = post.fullPost ?? ""
+            aiShortPost = try await contentGenerator.regenerateShortPost(
+                fullPost: fullPost,
+                currentShortPost: aiShortPost,
+                targetLength: targetContentLength
+            )
+            
+            // Сохраняем обновлённый shortPost в БД
+            post.shortPost = aiShortPost
+        }
+        
+        // Финальная проверка
+        let finalContentLength = aiShortPost.count + linksLength
+        
+        if finalContentLength > maxCaptionLength {
+            logger.error("❌ Не удалось уместить контент в \(maxCaptionLength) символов после \(attempts) попыток")
+            logger.error("   Итоговая длина: \(finalContentLength) символов")
+            throw Abort(.badRequest, reason: "Контент слишком длинный даже после \(attempts) пересозданий")
+        }
+        
+        if finalContentLength < minContentLength {
+            logger.warning("⚠️ Контент короче целевого (\(finalContentLength) < \(minContentLength))")
         }
         
         // Итоговый контент
-        let content = finalContent + linksText
+        let content = aiShortPost + linksText
         
-        logger.info("📝 Итоговый short content: \(content.count) символов (лимит: \(maxCaptionLength))")
+        logger.info("✅ Итоговый short content: \(content.count) символов (цель: 900-1000, лимит: \(maxCaptionLength))")
         
         return content
     }

@@ -114,7 +114,8 @@ func routes(_ app: Application) throws {
     // Publisher (только Telegram Channel)
     let publisher = TelegramChannelPublisher(
         client: app.client,
-        logger: logger
+        logger: logger,
+        contentGenerator: contentGenerator
     )
     logger.info("📱 Публикация через Telegram Channel (\(AppConfig.telegramChannelId))")
     

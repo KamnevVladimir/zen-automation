@@ -3,6 +3,11 @@ import Fluent
 
 protocol ContentGeneratorServiceProtocol {
     func generatePost(request: GenerationRequest, db: Database) async throws -> GenerationResponse
+    func regenerateShortPost(
+        fullPost: String,
+        currentShortPost: String,
+        targetLength: Int
+    ) async throws -> String
 }
 
 final class ContentGeneratorService: ContentGeneratorServiceProtocol {
@@ -241,6 +246,56 @@ final class ContentGeneratorService: ContentGeneratorServiceProtocol {
         let imageCost = Double(images) * 0.03
         
         return textCost + imageCost
+    }
+    
+    /// Пересоздаёт короткий пост с заданной длиной через Claude
+    func regenerateShortPost(
+        fullPost: String,
+        currentShortPost: String,
+        targetLength: Int
+    ) async throws -> String {
+        logger.info("🔄 Пересоздаю короткий пост (цель: \(targetLength) символов, текущий: \(currentShortPost.count))")
+        
+        let systemPrompt = """
+        Ты — эксперт по созданию коротких вирусных постов для Telegram и Яндекс Дзен.
+        
+        Твоя задача: сократить длинный пост до \(targetLength) символов, сохранив:
+        - Первое предложение (до точки) как заголовок для Дзена (макс 140 символов)
+        - Ключевую информацию и ценность
+        - Вирусность и призыв к действию
+        - Эмодзи и структуру
+        
+        ВАЖНО:
+        - Текст должен быть самодостаточным (читаемым без полного поста)
+        - Строго до \(targetLength) символов
+        - Без обрезки слов и предложений
+        """
+        
+        let userPrompt = """
+        ПОЛНЫЙ ПОСТ (\(fullPost.count) символов):
+        \(fullPost)
+        
+        ТЕКУЩИЙ КОРОТКИЙ ПОСТ (\(currentShortPost.count) символов):
+        \(currentShortPost)
+        
+        Создай новую версию короткого поста длиной до \(targetLength) символов.
+        Верни только текст поста, без JSON и дополнительных комментариев.
+        """
+        
+        let response = try await aiClient.generateText(
+            systemPrompt: systemPrompt,
+            userPrompt: userPrompt
+        )
+        
+        // Очищаем от возможных markdown блоков
+        let cleanedResponse = response
+            .replacingOccurrences(of: "```json", with: "")
+            .replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        logger.info("✅ Короткий пост пересоздан: \(cleanedResponse.count) символов")
+        
+        return cleanedResponse
     }
 }
 
