@@ -34,33 +34,48 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
             // Форматируем полный контент
             let fullContent = formatFullContent(post: post)
             
+            logger.info("📝 Общая длина контента: \(fullContent.count) символов")
+            
             // 1. Публикуем основное изображение с caption (первые 1024 символа)
             if let mainImage = images.first(where: { $0.position == 0 }) {
                 let caption = formatCaption(post: post)
+                logger.info("📸 Сообщение 1/?: Фото + Caption (\(caption.count) символов)")
                 try await sendPhoto(url: mainImage.url, caption: caption)
                 
-                // 2. Если контент длиннее 1024 - отправляем продолжение текстом
+                // 2. Если контент длиннее caption - отправляем продолжение текстом
                 let captionAfterMarkdown = convertMarkdownToHTML(caption).count
                 if fullContent.count > captionAfterMarkdown {
                     let remainingContent = String(fullContent.dropFirst(captionAfterMarkdown))
                     
                     // Отправляем по частям если нужно (Telegram лимит 4096)
                     let chunks = splitIntoChunks(remainingContent, maxLength: 4000)
-                    for chunk in chunks {
+                    logger.info("📄 Продолжение разбито на \(chunks.count) частей")
+                    
+                    for (index, chunk) in chunks.enumerated() {
+                        logger.info("📄 Сообщение \(index + 2)/\(chunks.count + 1): Текст (\(chunk.count) символов)")
                         try await sendMessage(text: chunk)
                         // Небольшая пауза между сообщениями
                         try await Task.sleep(nanoseconds: 500_000_000) // 0.5 сек
                     }
+                    
+                    logger.info("✅ Опубликовано \(chunks.count + 1) сообщений (1 фото + \(chunks.count) текстов)")
+                } else {
+                    logger.info("✅ Весь контент поместился в caption")
                 }
             } else {
                 // Если нет изображения - отправляем только текст по частям
                 let chunks = splitIntoChunks(fullContent, maxLength: 4000)
-                for chunk in chunks {
+                logger.info("📄 Контент без фото, разбит на \(chunks.count) частей")
+                
+                for (index, chunk) in chunks.enumerated() {
+                    logger.info("📄 Сообщение \(index + 1)/\(chunks.count): Текст (\(chunk.count) символов)")
                     try await sendMessage(text: chunk)
                     if chunks.count > 1 {
                         try await Task.sleep(nanoseconds: 500_000_000) // 0.5 сек
                     }
                 }
+                
+                logger.info("✅ Опубликовано \(chunks.count) текстовых сообщений")
             }
             
         // 3. Обновляем статус поста
