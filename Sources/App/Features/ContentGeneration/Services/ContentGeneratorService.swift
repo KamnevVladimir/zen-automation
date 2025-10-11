@@ -167,7 +167,8 @@ final class ContentGeneratorService: ContentGeneratorServiceProtocol {
     private func generateImages(prompts: [String]) async throws -> [String] {
         var urls: [String] = []
         
-        for prompt in prompts.prefix(3) {
+        // Генерируем только 1 изображение (первое из промптов)
+        for prompt in prompts.prefix(1) {
             do {
                 let url = try await aiClient.generateImage(prompt: prompt)
                 urls.append(url)
