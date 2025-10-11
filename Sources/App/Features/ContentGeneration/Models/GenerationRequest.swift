@@ -24,7 +24,8 @@ struct GenerationResponse: Content {
     let postId: UUID
     let title: String
     let subtitle: String?
-    let body: String
+    let shortPost: String
+    let fullPost: String
     let tags: [String]
     let metaDescription: String?
     let imageURLs: [String]
@@ -64,7 +65,8 @@ struct ContentPrompt {
         {
           "title": "Заголовок статьи (до 100 символов)",
           "subtitle": "Подзаголовок (до 200 символов, опционально)",
-          "body": "Текст статьи (с разметкой для Дзен)",
+          "short_post": "Короткий пост для Telegram (500-800 символов)",
+          "full_post": "Полная статья для Telegraph (5000-7000 символов)",
           "tags": ["тег1", "тег2", "тег3", "тег4", "тег5"],
           "meta_description": "SEO-описание (до 160 символов)",
           "bot_integration_points": ["строка 1", "строка 2"],

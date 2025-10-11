@@ -46,13 +46,18 @@ final class TelegramNotifier: TelegramNotifierProtocol {
     }
     
     func sendPostPublished(post: ZenPostModel, images: Int) async throws {
+        let shortPostCount = post.shortPost?.count ?? 0
+        let fullPostCount = post.fullPost?.count ?? 0
+        
         let message = """
         ✅ <b>Пост опубликован</b>
         
         📝 <b>Название:</b> \(post.title)
         🏷 <b>Тип:</b> \(post.templateType)
         🖼 <b>Изображений:</b> \(images)
-        📊 <b>Символов:</b> \(post.body.count)
+        📊 <b>Символов:</b>
+        • Короткий: \(shortPostCount)
+        • Полный: \(fullPostCount)
         🏷 <b>Теги:</b> \(post.tags.joined(separator: ", "))
         
         🔗 <b>ID:</b> <code>\(post.id?.uuidString ?? "N/A")</code>

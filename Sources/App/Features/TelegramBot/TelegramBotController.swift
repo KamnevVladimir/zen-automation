@@ -162,7 +162,9 @@ final class TelegramBotController {
                     
                     📝 **\(response.title)**
                     
-                    📊 Символов: \(response.body.count)
+                    📊 Символов:
+                    • Короткий: \(response.shortPost.count)
+                    • Полный: \(response.fullPost.count)
                     🖼 Изображений: \(response.imageURLs.count)
                     📱 Канал: \(AppConfig.telegramChannelId)
                     

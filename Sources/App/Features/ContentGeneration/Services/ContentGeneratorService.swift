@@ -143,7 +143,8 @@ final class ContentGeneratorService: ContentGeneratorServiceProtocol {
             postId: post.id!,
             title: title,
             subtitle: subtitle,
-            body: body,
+            shortPost: shortPost,
+            fullPost: fullPost,
             tags: optimizedTags, // Возвращаем оптимизированные теги
             metaDescription: metaDescription,
             imageURLs: imageURLs,

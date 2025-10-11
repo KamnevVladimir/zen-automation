@@ -144,6 +144,7 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
         }
     }
     
+    /// DEPRECATED: Используйте formatShortContentFromAI вместо этого
     private func formatCaption(post: ZenPostModel) -> String {
         // Telegram caption СТРОГИЙ лимит: 1024 символа
         var caption = ""
@@ -161,9 +162,10 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
         let headerLength = caption.count + 4 // +4 на \n\n
         let maxBodyLength = 1024 - headerLength - 10 // -10 на ... и запас
         
-        // Добавляем начало body (умно обрезаем по предложениям)
-        if maxBodyLength > 100 {
-            let bodyPreview = smartTruncate(post.body, maxLength: maxBodyLength)
+        // Используем shortPost если есть, иначе fullPost
+        let content = post.shortPost ?? post.fullPost ?? ""
+        if maxBodyLength > 100 && !content.isEmpty {
+            let bodyPreview = smartTruncate(content, maxLength: maxBodyLength)
             caption += "\n\n\(bodyPreview)"
         }
         
@@ -171,10 +173,12 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
     }
     
     /// Форматирует полный контент для публикации (весь текст)
+    /// DEPRECATED: Эта функция больше не нужна, т.к. AI генерирует fullPost
     private func formatFullContent(post: ZenPostModel) -> String {
+        // Если fullPost отсутствует - это ошибка генерации
+        // Возвращаем только заголовок + предупреждение
         var content = ""
         
-        // Заголовок жирным с заглавной буквы
         let title = post.title.prefix(1).uppercased() + post.title.dropFirst()
         content += "**\(title)**"
         
@@ -183,11 +187,7 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
             content += "\n\n\(sub)"
         }
         
-        // Весь body
-        content += "\n\n\(post.body)"
-        
-        // Хештеги в конце
-        content += "\n\n#путешествия #дешевыеполеты #отпуск"
+        content += "\n\n⚠️ Полный текст не сгенерирован. Обратитесь к администратору."
         
         return content
     }
@@ -201,7 +201,10 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
     private func formatShortContentFromAI(post: ZenPostModel, telegraphURL: String) -> String {
         // AI уже генерирует короткий пост с правильной структурой:
         // Первое предложение = заголовок для Дзена
-        let aiShortPost = post.shortPost ?? post.body
+        guard let aiShortPost = post.shortPost, !aiShortPost.isEmpty else {
+            // Если shortPost пустой - ошибка генерации
+            return "⚠️ Ошибка: короткий пост не сгенерирован\n\n📖 Читать полную статью:\n\(telegraphURL)"
+        }
         
         // Добавляем только ссылку на полную статью в конце
         var content = aiShortPost
@@ -210,6 +213,7 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
         return content
     }
     
+    /// DEPRECATED: Используйте formatShortContentFromAI вместо этого
     /// Форматирует короткий контент для Telegram (500-800 символов + ссылка на Telegraph)
     private func formatShortContent(post: ZenPostModel, telegraphURL: String) -> String {
         var content = ""
@@ -226,9 +230,10 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
             content += "\n\n\(sub)"
         }
         
-        // Умно обрезаем body до 400-500 символов (краткая выжимка)
+        // Используем fullPost для preview
+        let fullContent = post.fullPost ?? ""
         let maxBodyLength = 450 // Оставляем место для ссылки в конце
-        let bodyPreview = smartTruncate(post.body, maxLength: maxBodyLength)
+        let bodyPreview = smartTruncate(fullContent, maxLength: maxBodyLength)
         content += "\n\n\(bodyPreview)"
         
         // Хештеги

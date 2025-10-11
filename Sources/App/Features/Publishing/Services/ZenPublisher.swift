@@ -37,26 +37,32 @@ final class ZenPublisher: ZenPublisherProtocol {
             .all()
         
         // 3. Формируем сообщение для Telegram с готовым постом
+        let shortPostCount = post.shortPost?.count ?? 0
+        let fullPostCount = post.fullPost?.count ?? 0
+        let totalCount = shortPostCount + fullPostCount
+        
         let message = """
         ✅ <b>Новый пост готов к публикации</b>
         
         📝 <b>Заголовок:</b> \(post.title)
         
         📊 <b>Статистика:</b>
-        • Символов: \(post.body.count)
+        • Короткий пост (Telegram): \(shortPostCount) символов
+        • Полный пост (Telegraph): \(fullPostCount) символов
+        • Всего: \(totalCount) символов
         • Изображений: \(images.count)
         • Теги: \(post.tags.joined(separator: ", "))
         
         🔗 <b>Ссылки на изображения:</b>
         \(images.map { "• \($0.url)" }.joined(separator: "\n"))
         
-        📄 <b>Текст для публикации:</b>
+        📄 <b>Короткий пост для Telegram:</b>
         
         <b>\(post.title)</b>
         
-        \(post.body.truncate(to: 2000, addEllipsis: true))
+        \((post.shortPost ?? "").truncate(to: 500, addEllipsis: true))
         
-        💡 <i>Скопируйте и опубликуйте в Дзене вручную</i>
+        💡 <i>Полный текст будет опубликован в Telegraph</i>
         """
         
         // 4. Отправляем уведомление с готовым постом
@@ -78,10 +84,11 @@ final class ZenPublisher: ZenPublisherProtocol {
 final class RSSPublisher {
     func generateRSSFeed(posts: [ZenPostModel]) -> String {
         let rssItems = posts.map { post -> String in
+            let description = post.shortPost ?? post.fullPost ?? ""
             """
             <item>
                 <title><![CDATA[\(post.title)]]></title>
-                <description><![CDATA[\(post.body.prefix(500))...]]></description>
+                <description><![CDATA[\(description.prefix(500))...]]></description>
                 <link>https://dzen.ru/article/\(post.zenArticleId ?? "")</link>
                 <guid isPermaLink="false">\(post.id?.uuidString ?? "")</guid>
                 <pubDate>\(formatRFC822Date(post.publishedAt ?? Date()))</pubDate>
