@@ -35,9 +35,15 @@ final class TelegraphImageUploadService: ImageUploadServiceProtocol {
     }
     
     func uploadImage(data: Data, format: ImageFormat) async throws -> String {
-        logger.info("📤 Загружаю изображение на Telegraph (\(data.count) байт)")
+        logger.info("📤 Загружаю изображение на Telegraph (\(data.count) байт, формат: \(format.rawValue))")
         
-        let boundary = "Boundary-\(UUID().uuidString)"
+        // Telegraph имеет лимит ~5 МБ, проверяем
+        if data.count > 5 * 1024 * 1024 {
+            logger.warning("⚠️ Изображение слишком большое для Telegraph: \(data.count) байт")
+            throw Abort(.badRequest, reason: "Image too large for Telegraph (max 5MB)")
+        }
+        
+        let boundary = "----WebKitFormBoundary\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
         let url = URI(string: uploadURL)
         
         var request = ClientRequest(method: .POST, url: url)
@@ -74,6 +80,10 @@ final class TelegraphImageUploadService: ImageUploadServiceProtocol {
             logger.error("❌ Telegraph upload error!")
             logger.error("   Status: \(response.status.code) \(response.status.reasonPhrase)")
             logger.error("   Body: \(errorBody)")
+            logger.error("   Request URL: \(uploadURL)")
+            logger.error("   Content-Type: multipart/form-data; boundary=\(boundary)")
+            logger.error("   Body size: \(body.count) байт")
+            logger.error("   Image size: \(data.count) байт")
             throw Abort(.internalServerError, reason: "Telegraph upload failed: \(response.status)")
         }
         

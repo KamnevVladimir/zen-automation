@@ -11,7 +11,9 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
     init(client: Client, logger: Logger) {
         self.client = client
         self.botToken = AppConfig.telegramToken
-        self.channelId = AppConfig.telegramChannelId
+        // Автоматически добавляем @ если его нет
+        let rawChannelId = AppConfig.telegramChannelId
+        self.channelId = rawChannelId.hasPrefix("@") ? rawChannelId : "@\(rawChannelId)"
         self.logger = logger
     }
     
