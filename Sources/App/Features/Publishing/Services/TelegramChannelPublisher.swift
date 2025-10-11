@@ -194,12 +194,22 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
     
     /// Форматирует короткий пост от AI + добавляет ссылку на Telegraph
     private func formatShortContentFromAI(post: ZenPostModel, telegraphURL: String) -> String {
-        // Используем короткий пост от AI
-        let aiShortPost = post.shortPost ?? post.body
+        var content = ""
         
-        // Добавляем призыв прочитать полную статью в начале и конце
-        var content = "📖 Читайте подробную статью со всеми деталями в нашем Telegraph канале:\n\n"
-        content += aiShortPost
+        // Добавляем заголовок жирным
+        let title = post.title.prefix(1).uppercased() + post.title.dropFirst()
+        content += "**\(title)**"
+        
+        if let subtitle = post.subtitle, !subtitle.isEmpty {
+            let sub = subtitle.prefix(1).uppercased() + subtitle.dropFirst()
+            content += "\n\n\(sub)"
+        }
+        
+        // Добавляем короткий пост от AI
+        let aiShortPost = post.shortPost ?? post.body
+        content += "\n\n\(aiShortPost)"
+        
+        // Добавляем призыв прочитать полную статью в конце
         content += "\n\n📖 Подробная статья со всеми деталями:\n\(telegraphURL)"
         
         return content
@@ -318,6 +328,14 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
         result = result.replacingOccurrences(of: "✈️ ", with: "• ")
         result = result.replacingOccurrences(of: "💰 ", with: "• ")
         result = result.replacingOccurrences(of: "📍 ", with: "• ")
+        
+        // 4. Экранируем оставшиеся < > символы (кроме уже созданных тегов)
+        result = result.replacingOccurrences(of: "<", with: "&lt;")
+        result = result.replacingOccurrences(of: ">", with: "&gt;")
+        
+        // 5. Восстанавливаем наши HTML теги
+        result = result.replacingOccurrences(of: "&lt;b&gt;", with: "<b>")
+        result = result.replacingOccurrences(of: "&lt;/b&gt;", with: "</b>")
         
         return result
     }
