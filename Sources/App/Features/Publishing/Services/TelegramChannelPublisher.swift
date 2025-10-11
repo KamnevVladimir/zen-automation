@@ -90,10 +90,30 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
         // Конвертируем Markdown в HTML для Telegram
         let htmlCaption = convertMarkdownToHTML(caption)
         
+        // Telegram лимит для caption: 1024 символа
+        let maxCaptionLength = 1024
+        let finalCaption: String
+        
+        if htmlCaption.count > maxCaptionLength {
+            logger.warning("⚠️ Caption слишком длинный (\(htmlCaption.count) символов), обрезаю до \(maxCaptionLength)")
+            
+            // Обрезаем до 1024 символов, но стараемся не разрывать слова
+            let truncated = String(htmlCaption.prefix(maxCaptionLength))
+            if let lastSpaceIndex = truncated.lastIndex(of: " ") {
+                finalCaption = String(truncated[..<lastSpaceIndex]) + "..."
+            } else {
+                finalCaption = truncated + "..."
+            }
+            
+            logger.info("📝 Итоговый caption: \(finalCaption.count) символов")
+        } else {
+            finalCaption = htmlCaption
+        }
+        
         let body: [String: Any] = [
             "chat_id": channelId,
             "photo": url,
-            "caption": htmlCaption,
+            "caption": finalCaption,
             "parse_mode": "HTML"
         ]
         
@@ -210,9 +230,34 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
         let botLink = "🤖 [@gdeVacationBot](https://t.me/gdeVacationBot) - поиск дешёвых билетов"
         let fullArticleLink = "📖 [Читать полную статью с деталями](\(telegraphURL))"
         
-        // Claude теперь сам генерирует short_post с учётом лимита
-        var content = aiShortPost
-        content += "\n\n\(botLink)\n\(fullArticleLink)"
+        // Рассчитываем длину ссылок
+        let linksText = "\n\n\(botLink)\n\(fullArticleLink)"
+        let linksLength = linksText.count
+        
+        // Telegram лимит для caption: 1024 символа
+        let maxCaptionLength = 1024
+        let maxContentLength = maxCaptionLength - linksLength - 10 // -10 на запас
+        
+        // Обрезаем основной контент если нужно
+        let finalContent: String
+        if aiShortPost.count > maxContentLength {
+            logger.warning("⚠️ ShortPost слишком длинный (\(aiShortPost.count) символов), обрезаю до \(maxContentLength)")
+            
+            // Обрезаем до нужной длины, стараясь не разрывать слова
+            let truncated = String(aiShortPost.prefix(maxContentLength))
+            if let lastSpaceIndex = truncated.lastIndex(of: " ") {
+                finalContent = String(truncated[..<lastSpaceIndex]) + "..."
+            } else {
+                finalContent = truncated + "..."
+            }
+        } else {
+            finalContent = aiShortPost
+        }
+        
+        // Итоговый контент
+        let content = finalContent + linksText
+        
+        logger.info("📝 Итоговый short content: \(content.count) символов (лимит: \(maxCaptionLength))")
         
         return content
     }
