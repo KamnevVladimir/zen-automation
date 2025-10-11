@@ -5,12 +5,14 @@ import Foundation
 final class StabilityAIClient {
     private let client: Client
     private let apiKey: String
+    private let uploadService: ImageUploadServiceProtocol
     private let baseURL = "https://api.stability.ai/v2beta"
     private let logger = Logger(label: "stability-client")
     
-    init(client: Client, apiKey: String) {
+    init(client: Client, apiKey: String, uploadService: ImageUploadServiceProtocol) {
         self.client = client
         self.apiKey = apiKey
+        self.uploadService = uploadService
     }
     
     func generateImage(prompt: String) async throws -> String {
@@ -68,15 +70,16 @@ final class StabilityAIClient {
             throw Abort(.internalServerError, reason: "No image data in Stability AI response")
         }
         
-        // Конвертируем в base64
-        let base64Image = Data(buffer: imageData).base64EncodedString()
+        let imageBytes = Data(buffer: imageData)
         
         logger.info("✅ Изображение успешно сгенерировано")
-        logger.info("📦 Размер base64: \(base64Image.count) символов")
+        logger.info("📦 Размер изображения: \(imageBytes.count) байт")
         
-        // Здесь нужно загрузить base64 на CDN и вернуть URL
-        // Пока возвращаем data URL
-        return "data:image/png;base64,\(base64Image)"
+        // Загружаем на Telegraph и получаем публичный URL
+        let publicURL = try await uploadService.uploadImage(data: imageBytes, format: .png)
+        logger.info("✅ Изображение загружено на Telegraph: \(publicURL)")
+        
+        return publicURL
     }
 }
 

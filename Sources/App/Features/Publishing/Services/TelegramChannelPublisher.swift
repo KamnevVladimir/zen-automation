@@ -79,11 +79,22 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
         let data = try JSONSerialization.data(withJSONObject: body)
         request.body = .init(data: data)
         
+        logger.info("📤 Отправляю фото в Telegram: \(url)")
+        logger.info("📦 Размер JSON payload: \(data.count) байт")
+        
         let response = try await client.send(request)
         
         guard response.status == .ok else {
-            throw Abort(.internalServerError, reason: "Telegram API error: \(response.status)")
+            let errorBody = response.body.map { String(buffer: $0) } ?? "No error body"
+            logger.error("❌ Telegram API sendPhoto error!")
+            logger.error("   Status: \(response.status.code) \(response.status.reasonPhrase)")
+            logger.error("   Body: \(errorBody)")
+            logger.error("   Photo URL: \(url)")
+            logger.error("   Payload size: \(data.count) байт")
+            throw Abort(.internalServerError, reason: "Telegram API error: \(response.status.code) \(response.status.reasonPhrase)")
         }
+        
+        logger.info("✅ Фото отправлено в Telegram")
     }
     
     private func sendMessage(text: String) async throws {

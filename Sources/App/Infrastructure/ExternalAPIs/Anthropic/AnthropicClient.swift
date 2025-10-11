@@ -134,7 +134,12 @@ final class AnthropicClient: AIClientProtocol {
     
     func generateImage(prompt: String) async throws -> String {
         // Anthropic не генерирует изображения, используем Stability AI
-        let stabilityClient = StabilityAIClient(client: client, apiKey: AppConfig.stabilityAIKey)
+        let uploadService = TelegraphImageUploadService(client: client, logger: logger)
+        let stabilityClient = StabilityAIClient(
+            client: client,
+            apiKey: AppConfig.stabilityAIKey,
+            uploadService: uploadService
+        )
         return try await stabilityClient.generateImage(prompt: prompt)
     }
 }
