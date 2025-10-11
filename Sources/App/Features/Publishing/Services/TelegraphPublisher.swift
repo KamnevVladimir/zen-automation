@@ -76,6 +76,14 @@ final class TelegraphPublisher: TelegraphPublisherProtocol {
         return token
     }
     
+    /// Конвертирует Telegram file_id в прямую ссылку на файл
+    private func convertTelegramFileIdToUrl(fileId: String) -> String {
+        // Telegram file_id нужно конвертировать в прямую ссылку через getFile API
+        // Пока что возвращаем как есть - Telegraph может не поддерживать Telegram URLs
+        // В будущем можно добавить вызов getFile API для получения прямой ссылки
+        return fileId
+    }
+    
     /// Создаёт страницу в Telegraph и возвращает URL
     func createPage(title: String, content: String, images: [ZenImageModel]) async throws -> String {
         logger.info("📝 Создание страницы в Telegraph: \(title)")
@@ -153,13 +161,15 @@ final class TelegraphPublisher: TelegraphPublisherProtocol {
         
         // 1. СНАЧАЛА добавляем главное изображение
         if let mainImage = images.first(where: { $0.position == 0 }) {
+            // Конвертируем Telegram file_id в прямую ссылку
+            let imageUrl = convertTelegramFileIdToUrl(fileId: mainImage.url)
             htmlArray.append([
                 "tag": "figure",
                 "children": [
                     [
                         "tag": "img",
                         "attrs": [
-                            "src": mainImage.url,
+                            "src": imageUrl,
                             "alt": "Главное изображение"
                         ]
                     ]

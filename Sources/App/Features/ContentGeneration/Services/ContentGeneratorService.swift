@@ -67,8 +67,27 @@ final class ContentGeneratorService: ContentGeneratorServiceProtocol {
         let estimatedReadTime = json["estimated_read_time"] as? Int ?? 5
         
         // Парсим два поста из нового формата
-        let shortPost = json["short_post"] as? String ?? body
+        var shortPost = json["short_post"] as? String ?? body
         let fullPost = json["full_post"] as? String ?? body
+        
+        // Валидируем длину short_post с учётом ссылок
+        let botLinkLength = "🤖 [@gdeVacationBot](https://t.me/gdeVacationBot) - поиск дешёвых билетов".count
+        let telegraphLinkLength = "📖 [Читать полную статью с деталями](https://telegra.ph/example)".count
+        let maxShortPostLength = 1024 - botLinkLength - telegraphLinkLength - 10 // 10 символов для переносов
+        
+        if shortPost.count > maxShortPostLength {
+            logger.warning("⚠️ short_post слишком длинный: \(shortPost.count) > \(maxShortPostLength) символов")
+            logger.info("🔄 Просим Claude сократить short_post...")
+            
+            // Просим Claude сократить short_post
+            shortPost = try await requestShorterPost(
+                originalShortPost: shortPost,
+                maxLength: maxShortPostLength,
+                title: title
+            )
+            
+            logger.info("✅ short_post сокращён до \(shortPost.count) символов")
+        }
         
         logger.info("📸 Получены английские промпты для изображений: \(imagePromptsEnglish.count) шт")
         
@@ -151,6 +170,32 @@ final class ContentGeneratorService: ContentGeneratorServiceProtocol {
             estimatedReadTime: estimatedReadTime,
             status: "draft"
         )
+    }
+    
+    /// Просит Claude сократить short_post до нужной длины
+    private func requestShorterPost(
+        originalShortPost: String,
+        maxLength: Int,
+        title: String
+    ) async throws -> String {
+        let shorterPrompt = """
+        Сократи этот короткий пост для Telegram до \(maxLength) символов максимум.
+        Сохрани основную суть и крючок, но убери лишние детали.
+        
+        Заголовок: \(title)
+        
+        Текущий пост (\(originalShortPost.count) символов):
+        \(originalShortPost)
+        
+        Верни ТОЛЬКО сокращённый текст без дополнительных комментариев.
+        """
+        
+        let response = try await aiClient.generateText(
+            systemPrompt: "Ты помощник по сокращению текстов. Сокращай чётко и по делу.",
+            userPrompt: shorterPrompt
+        )
+        
+        return response.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
     }
     
     private func generateText(for request: GenerationRequest, existingTitles: [String]) async throws -> String {

@@ -206,9 +206,13 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
             return "⚠️ Ошибка: короткий пост не сгенерирован\n\n📖 Читать полную статью:\n\(telegraphURL)"
         }
         
-        // Добавляем только ссылку на полную статью в конце
+        // Добавляем ссылку на бота и полную статью
+        let botLink = "🤖 [@gdeVacationBot](https://t.me/gdeVacationBot) - поиск дешёвых билетов"
+        let fullArticleLink = "📖 [Читать полную статью с деталями](\(telegraphURL))"
+        
+        // Claude теперь сам генерирует short_post с учётом лимита
         var content = aiShortPost
-        content += "\n\n📖 Читать полную статью с деталями:\n\(telegraphURL)"
+        content += "\n\n\(botLink)\n\(fullArticleLink)"
         
         return content
     }
