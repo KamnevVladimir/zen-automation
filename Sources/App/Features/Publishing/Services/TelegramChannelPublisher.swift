@@ -7,6 +7,7 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
     private let botToken: String
     private let channelId: String // Например: @your_channel
     private let logger: Logger
+    private let telegraphPublisher: TelegraphPublisherProtocol
     
     init(client: Client, logger: Logger) {
         self.client = client
@@ -15,6 +16,7 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
         let rawChannelId = AppConfig.telegramChannelId
         self.channelId = rawChannelId.hasPrefix("@") ? rawChannelId : "@\(rawChannelId)"
         self.logger = logger
+        self.telegraphPublisher = TelegraphPublisher(client: client, logger: logger)
     }
     
     func publish(post: ZenPostModel, db: Database) async throws -> PublishResult {
@@ -31,51 +33,26 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
         logger.info("📤 Публикация в Telegram канал: \(channelId)")
         
         do {
-            // Форматируем полный контент
-            let fullContent = formatFullContent(post: post)
+            // 1. Создаём полный пост в Telegraph
+            let fullContent = post.fullPost ?? formatFullContent(post: post)
+            let telegraphURL = try await telegraphPublisher.createPage(
+                title: post.title,
+                content: fullContent,
+                images: images
+            )
             
-            logger.info("📝 Общая длина контента: \(fullContent.count) символов")
+            logger.info("✅ Telegraph страница создана: \(telegraphURL)")
             
-            // 1. Публикуем основное изображение с caption (первые 1024 символа)
+            // 2. Используем короткий пост от AI + добавляем ссылку
+            let shortContent = formatShortContentFromAI(post: post, telegraphURL: telegraphURL)
+            
+            // 3. Публикуем короткий пост с главным фото
             if let mainImage = images.first(where: { $0.position == 0 }) {
-                let caption = formatCaption(post: post)
-                logger.info("📸 Сообщение 1/?: Фото + Caption (\(caption.count) символов)")
-                try await sendPhoto(url: mainImage.url, caption: caption)
-                
-                // 2. Если контент длиннее caption - отправляем продолжение текстом
-                let captionAfterMarkdown = convertMarkdownToHTML(caption).count
-                if fullContent.count > captionAfterMarkdown {
-                    let remainingContent = String(fullContent.dropFirst(captionAfterMarkdown))
-                    
-                    // Отправляем по частям если нужно (Telegram лимит 4096)
-                    let chunks = splitIntoChunks(remainingContent, maxLength: 4000)
-                    logger.info("📄 Продолжение разбито на \(chunks.count) частей")
-                    
-                    for (index, chunk) in chunks.enumerated() {
-                        logger.info("📄 Сообщение \(index + 2)/\(chunks.count + 1): Текст (\(chunk.count) символов)")
-                        try await sendMessage(text: chunk)
-                        // Небольшая пауза между сообщениями
-                        try await Task.sleep(nanoseconds: 500_000_000) // 0.5 сек
-                    }
-                    
-                    logger.info("✅ Опубликовано \(chunks.count + 1) сообщений (1 фото + \(chunks.count) текстов)")
-                } else {
-                    logger.info("✅ Весь контент поместился в caption")
-                }
+                logger.info("📸 Публикация: Фото + короткий пост (\(shortContent.count) символов)")
+                try await sendPhoto(url: mainImage.url, caption: shortContent)
             } else {
-                // Если нет изображения - отправляем только текст по частям
-                let chunks = splitIntoChunks(fullContent, maxLength: 4000)
-                logger.info("📄 Контент без фото, разбит на \(chunks.count) частей")
-                
-                for (index, chunk) in chunks.enumerated() {
-                    logger.info("📄 Сообщение \(index + 1)/\(chunks.count): Текст (\(chunk.count) символов)")
-                    try await sendMessage(text: chunk)
-                    if chunks.count > 1 {
-                        try await Task.sleep(nanoseconds: 500_000_000) // 0.5 сек
-                    }
-                }
-                
-                logger.info("✅ Опубликовано \(chunks.count) текстовых сообщений")
+                logger.info("📄 Публикация: Только короткий пост (\(shortContent.count) символов)")
+                try await sendMessage(text: shortContent)
             }
             
         // 3. Обновляем статус поста
@@ -211,6 +188,49 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
         
         // Хештеги в конце
         content += "\n\n#путешествия #дешевыеполеты #отпуск"
+        
+        return content
+    }
+    
+    /// Форматирует короткий пост от AI + добавляет ссылку на Telegraph
+    private func formatShortContentFromAI(post: ZenPostModel, telegraphURL: String) -> String {
+        // Используем короткий пост от AI
+        let aiShortPost = post.shortPost ?? post.body
+        
+        // Добавляем призыв прочитать полную статью в начале и конце
+        var content = "📖 Читайте подробную статью со всеми деталями в нашем Telegraph канале:\n\n"
+        content += aiShortPost
+        content += "\n\n📖 Подробная статья со всеми деталями:\n\(telegraphURL)"
+        
+        return content
+    }
+    
+    /// Форматирует короткий контент для Telegram (500-800 символов + ссылка на Telegraph)
+    private func formatShortContent(post: ZenPostModel, telegraphURL: String) -> String {
+        var content = ""
+        
+        // Начало с призыва прочитать подробную статью
+        content += "📖 Читайте подробную статью со всеми деталями в нашем Telegraph канале:\n\n"
+        
+        // Заголовок жирным с заглавной буквы
+        let title = post.title.prefix(1).uppercased() + post.title.dropFirst()
+        content += "**\(title)**"
+        
+        if let subtitle = post.subtitle, !subtitle.isEmpty {
+            let sub = subtitle.prefix(1).uppercased() + subtitle.dropFirst()
+            content += "\n\n\(sub)"
+        }
+        
+        // Умно обрезаем body до 400-500 символов (краткая выжимка)
+        let maxBodyLength = 450 // Оставляем место для ссылки в конце
+        let bodyPreview = smartTruncate(post.body, maxLength: maxBodyLength)
+        content += "\n\n\(bodyPreview)"
+        
+        // Хештеги
+        content += "\n\n#путешествия #дешевыеполеты #отпуск"
+        
+        // Конец с призывом прочитать полную статью
+        content += "\n\n📖 Подробная статья со всеми деталями:\n\(telegraphURL)"
         
         return content
     }

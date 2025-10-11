@@ -48,6 +48,7 @@ public func configure(_ app: Application) throws {
     app.migrations.add(CreatePostTemplates())
     app.migrations.add(CreateTrendingDestinations())
     app.migrations.add(CreateGenerationLogs())
+    app.migrations.add(AddShortAndFullPost())
     
     // Запуск миграций автоматически
     try app.autoMigrate().wait()

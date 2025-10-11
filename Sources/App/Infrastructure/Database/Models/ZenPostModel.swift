@@ -16,6 +16,12 @@ final class ZenPostModel: Model, Content {
     @Field(key: "body")
     var body: String
     
+    @OptionalField(key: "short_post")
+    var shortPost: String?
+    
+    @OptionalField(key: "full_post")
+    var fullPost: String?
+    
     @Field(key: "tags")
     var tags: [String]
     
@@ -53,6 +59,8 @@ final class ZenPostModel: Model, Content {
         title: String,
         subtitle: String? = nil,
         body: String,
+        shortPost: String? = nil,
+        fullPost: String? = nil,
         tags: [String] = [],
         metaDescription: String? = nil,
         templateType: String,
@@ -62,6 +70,8 @@ final class ZenPostModel: Model, Content {
         self.title = title
         self.subtitle = subtitle
         self.body = body
+        self.shortPost = shortPost
+        self.fullPost = fullPost
         self.tags = tags
         self.metaDescription = metaDescription
         self.templateType = templateType

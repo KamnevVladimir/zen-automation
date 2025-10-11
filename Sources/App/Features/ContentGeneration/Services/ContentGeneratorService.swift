@@ -67,6 +67,10 @@ final class ContentGeneratorService: ContentGeneratorServiceProtocol {
         let imagePromptsEnglish = json["image_prompts_english"] as? [String] ?? []
         let estimatedReadTime = json["estimated_read_time"] as? Int ?? 5
         
+        // Парсим два поста из нового формата
+        let shortPost = json["short_post"] as? String ?? body
+        let fullPost = json["full_post"] as? String ?? body
+        
         logger.info("📸 Получены английские промпты для изображений: \(imagePromptsEnglish.count) шт")
         
         // Анализируем вирусный потенциал заголовка
@@ -102,6 +106,8 @@ final class ContentGeneratorService: ContentGeneratorServiceProtocol {
             title: title,
             subtitle: subtitle,
             body: body,
+            shortPost: shortPost,
+            fullPost: fullPost,
             tags: optimizedTags, // Используем оптимизированные теги
             metaDescription: metaDescription,
             templateType: request.templateType.rawValue,
