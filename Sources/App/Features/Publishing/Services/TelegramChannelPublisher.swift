@@ -236,15 +236,18 @@ final class TelegramChannelPublisher: ZenPublisherProtocol {
         let botLink = "🤖 [@gdeVacationBot](https://t.me/gdeVacationBot) - поиск дешёвых билетов"
         let fullArticleLink = "📖 [Читать полную статью с деталями](\(telegraphURL))"
         
-        // Рассчитываем длину ссылок
+        // Рассчитываем РЕАЛЬНУЮ длину ссылок (Telegraph URL может быть очень длинным!)
         let linksText = "\n\n\(botLink)\n\(fullArticleLink)"
         let linksLength = linksText.count
+        
+        logger.info("📏 Длина ссылок: \(linksLength) символов (бот: ~85, telegraph: ~\(fullArticleLink.count))")
         
         // Telegram лимит для caption: 1024 символа
         // Целевой размер: 900-1000 символов (по требованию пользователя)
         let maxCaptionLength = 1024
-        let targetContentLength = 1000 - linksLength // ~800 символов для контента
-        let minContentLength = 900 - linksLength      // ~700 символов минимум
+        // ВАЖНО: вычитаем РЕАЛЬНУЮ длину ссылок, а не предполагаемую 200
+        let targetContentLength = maxCaptionLength - linksLength - 20 // -20 на запас
+        let minContentLength = 900 - linksLength
         
         // Проверяем, нужно ли пересоздать короткий пост
         var attempts = 0
