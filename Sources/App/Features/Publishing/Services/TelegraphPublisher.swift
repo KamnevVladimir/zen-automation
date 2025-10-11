@@ -245,7 +245,7 @@ final class TelegraphPublisher: TelegraphPublisherProtocol {
                     .replacingOccurrences(of: "📍 ", with: "")
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 
-                listItems.append(listItemText)
+                listItems.append(escapeHtml(listItemText))
             } else {
                 // Если есть накопленные элементы списка, создаём список
                 if !listItems.isEmpty {
@@ -269,6 +269,14 @@ final class TelegraphPublisher: TelegraphPublisherProtocol {
                 // Заменяем одинарные переносы строк на пробелы
                 processedParagraph = processedParagraph.replacingOccurrences(of: "\n", with: " ")
                 
+                // Проверяем, есть ли готовые HTML теги <b>текст</b> (от AI)
+                if processedParagraph.contains("<b>") && processedParagraph.contains("</b>") {
+                    // Конвертируем <b> в ** для единообразной обработки
+                    processedParagraph = processedParagraph
+                        .replacingOccurrences(of: "<b>", with: "**")
+                        .replacingOccurrences(of: "</b>", with: "**")
+                }
+                
                 // Проверяем, есть ли жирный текст **текст**
                 if processedParagraph.contains("**") {
                     // Создаём структурированный HTML с поддержкой жирного текста
@@ -281,7 +289,7 @@ final class TelegraphPublisher: TelegraphPublisherProtocol {
                     // Обычный абзац без форматирования
                     htmlArray.append([
                         "tag": "p",
-                        "children": [processedParagraph]
+                        "children": [escapeHtml(processedParagraph)]
                     ])
                 }
             }
@@ -338,11 +346,16 @@ final class TelegraphPublisher: TelegraphPublisherProtocol {
     }
     
     /// Парсит текст с жирным выделением **текст** в структурированный HTML для Telegraph
-    private func parseBoldText(_ text: String) -> [Any] {
+    func parseBoldText(_ text: String) -> [Any] {
         var children: [Any] = []
         let pattern = "\\*\\*([^*]+)\\*\\*"
         let regex = try! NSRegularExpression(pattern: pattern, options: [])
         let matches = regex.matches(in: text, options: [], range: NSRange(location: 0, length: text.utf16.count))
+        
+        // Если нет жирного текста, возвращаем весь текст с HTML-экранированием
+        if matches.isEmpty {
+            return [escapeHtml(text)]
+        }
         
         var lastIndex = 0
         
@@ -352,15 +365,15 @@ final class TelegraphPublisher: TelegraphPublisherProtocol {
                 let beforeRange = NSRange(location: lastIndex, length: match.range.location - lastIndex)
                 let beforeText = (text as NSString).substring(with: beforeRange)
                 if !beforeText.isEmpty {
-                    children.append(beforeText)
+                    children.append(escapeHtml(beforeText))
                 }
             }
             
             // Добавляем жирный текст
             let boldText = (text as NSString).substring(with: match.range(at: 1))
             children.append([
-                "tag": "strong",
-                "children": [boldText]
+                "tag": "b",
+                "children": [escapeHtml(boldText)]
             ])
             
             lastIndex = match.range.location + match.range.length
@@ -370,11 +383,21 @@ final class TelegraphPublisher: TelegraphPublisherProtocol {
         if lastIndex < text.utf16.count {
             let remainingText = (text as NSString).substring(from: lastIndex)
             if !remainingText.isEmpty {
-                children.append(remainingText)
+                children.append(escapeHtml(remainingText))
             }
         }
         
         return children
+    }
+    
+    /// Экранирует HTML символы для безопасного отображения
+    func escapeHtml(_ text: String) -> String {
+        return text
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+            .replacingOccurrences(of: "'", with: "&#39;")
     }
 }
 
