@@ -77,11 +77,55 @@ final class TelegraphPublisher: TelegraphPublisherProtocol {
     }
     
     /// Конвертирует Telegram file_id в прямую ссылку на файл
-    private func convertTelegramFileIdToUrl(fileId: String) -> String {
-        // Telegram file_id нужно конвертировать в прямую ссылку через getFile API
-        // Пока что возвращаем как есть - Telegraph может не поддерживать Telegram URLs
-        // В будущем можно добавить вызов getFile API для получения прямой ссылки
-        return fileId
+    private func convertTelegramFileIdToUrl(fileId: String) async throws -> String {
+        logger.info("🔗 Конвертирую Telegram file_id в прямую ссылку: \(fileId)")
+        
+        // Получаем токен бота из переменных окружения
+        guard let botToken = Environment.get("TELEGRAM_BOT_TOKEN") else {
+            logger.error("❌ TELEGRAM_BOT_TOKEN не найден в переменных окружения")
+            return fileId // Возвращаем как есть, если токен недоступен
+        }
+        
+        let url = URI(string: "https://api.telegram.org/bot\(botToken)/getFile")
+        
+        let requestBody: [String: Any] = [
+            "file_id": fileId
+        ]
+        
+        var request = ClientRequest(method: .POST, url: url)
+        request.headers.add(name: .contentType, value: "application/json")
+        request.body = .init(data: try JSONSerialization.data(withJSONObject: requestBody))
+        
+        let response = try await client.send(request)
+        
+        guard response.status == .ok else {
+            logger.error("❌ Telegram getFile API error: \(response.status)")
+            return fileId
+        }
+        
+        struct GetFileResponse: Codable {
+            let ok: Bool
+            let result: FileInfo
+            
+            struct FileInfo: Codable {
+                let file_id: String
+                let file_unique_id: String
+                let file_size: Int?
+                let file_path: String
+            }
+        }
+        
+        let fileResponse = try response.content.decode(GetFileResponse.self)
+        
+        guard fileResponse.ok else {
+            logger.error("❌ Telegram getFile returned ok=false")
+            return fileId
+        }
+        
+        let directUrl = "https://api.telegram.org/file/bot\(botToken)/\(fileResponse.result.file_path)"
+        logger.info("✅ Получена прямая ссылка: \(directUrl)")
+        
+        return directUrl
     }
     
     /// Создаёт страницу в Telegraph и возвращает URL
@@ -92,7 +136,7 @@ final class TelegraphPublisher: TelegraphPublisherProtocol {
         let token = try await getAccessToken()
         
         // Конвертируем Markdown в HTML-массив для Telegraph
-        let htmlArray = convertToTelegraphHTMLArray(content: content, images: images)
+        let htmlArray = try await convertToTelegraphHTMLArray(content: content, images: images)
         
         let url = URI(string: "\(baseURL)/createPage")
         
@@ -156,13 +200,13 @@ final class TelegraphPublisher: TelegraphPublisherProtocol {
     }
     
     /// Конвертирует Markdown контент в HTML-массив для Telegraph API
-    private func convertToTelegraphHTMLArray(content: String, images: [ZenImageModel]) -> [[String: Any]] {
+    private func convertToTelegraphHTMLArray(content: String, images: [ZenImageModel]) async throws -> [[String: Any]] {
         var htmlArray: [[String: Any]] = []
         
         // 1. СНАЧАЛА добавляем главное изображение
         if let mainImage = images.first(where: { $0.position == 0 }) {
             // Конвертируем Telegram file_id в прямую ссылку
-            let imageUrl = convertTelegramFileIdToUrl(fileId: mainImage.url)
+            let imageUrl = try await convertTelegramFileIdToUrl(fileId: mainImage.url)
             htmlArray.append([
                 "tag": "figure",
                 "children": [
@@ -201,16 +245,31 @@ final class TelegraphPublisher: TelegraphPublisherProtocol {
             "children": [processedContent]
         ])
         
+        // 3.5. Добавляем ссылку на бота в конце
+        htmlArray.append([
+            "tag": "p",
+            "children": [
+                [
+                    "tag": "a",
+                    "attrs": [
+                        "href": "https://t.me/gdeVacationBot"
+                    ],
+                    "children": ["🤖 @gdeVacationBot - поиск дешёвых билетов"]
+                ]
+            ]
+        ])
+        
         // 4. Добавляем остальные изображения в конце (если есть)
         let additionalImages = images.filter { $0.position != 0 }
         for (index, image) in additionalImages.enumerated() {
+            let imageUrl = try await convertTelegramFileIdToUrl(fileId: image.url)
             htmlArray.append([
                 "tag": "figure",
                 "children": [
                     [
                         "tag": "img",
                         "attrs": [
-                            "src": image.url,
+                            "src": imageUrl,
                             "alt": "Изображение \(index + 2)"
                         ]
                     ]
