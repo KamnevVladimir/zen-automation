@@ -17,14 +17,14 @@ final class TelegraphPublisher {
     func createPage(title: String, content: String, images: [ZenImageModel]) async throws -> String {
         logger.info("📝 Создание страницы в Telegraph: \(title)")
         
-        // Конвертируем Markdown в HTML для Telegraph
-        let htmlContent = convertToTelegraphHTML(content: content, images: images)
+        // Конвертируем Markdown в HTML-массив для Telegraph
+        let htmlArray = convertToTelegraphHTMLArray(content: content, images: images)
         
         let url = URI(string: "\(baseURL)/createPage")
         
         let requestBody: [String: Any] = [
             "title": title,
-            "content": htmlContent,
+            "content": htmlArray,
             "author_name": "GdeTravel",
             "author_url": "https://t.me/gdeTravel"
         ]
@@ -61,35 +61,51 @@ final class TelegraphPublisher {
         }
     }
     
-    /// Конвертирует Markdown контент в HTML для Telegraph
-    private func convertToTelegraphHTML(content: String, images: [ZenImageModel]) -> String {
-        var html = content
+    /// Конвертирует Markdown контент в HTML-массив для Telegraph API
+    private func convertToTelegraphHTMLArray(content: String, images: [ZenImageModel]) -> [[String: Any]] {
+        var htmlArray: [[String: Any]] = []
+        
+        // Обрабатываем контент
+        var processedContent = content
         
         // Заменяем **жирный** на <b>жирный</b>
-        html = html.replacingOccurrences(of: "**([^*]+)**", with: "<b>$1</b>", options: .regularExpression)
+        let boldRegex = try! NSRegularExpression(pattern: "\\*\\*([^*]+)\\*\\*", options: [])
+        let range = NSRange(location: 0, length: processedContent.utf16.count)
+        processedContent = boldRegex.stringByReplacingMatches(in: processedContent, options: [], range: range, withTemplate: "<b>$1</b>")
         
         // Заменяем эмодзи маркеры на HTML списки
-        html = html.replacingOccurrences(of: "⚡️", with: "<br>• ")
-        html = html.replacingOccurrences(of: "🎯", with: "<br>• ")
-        html = html.replacingOccurrences(of: "✈️", with: "<br>• ")
-        html = html.replacingOccurrences(of: "💰", with: "<br>• ")
-        html = html.replacingOccurrences(of: "📍", with: "<br>• ")
+        processedContent = processedContent.replacingOccurrences(of: "⚡️", with: "<br>• ")
+        processedContent = processedContent.replacingOccurrences(of: "🎯", with: "<br>• ")
+        processedContent = processedContent.replacingOccurrences(of: "✈️", with: "<br>• ")
+        processedContent = processedContent.replacingOccurrences(of: "💰", with: "<br>• ")
+        processedContent = processedContent.replacingOccurrences(of: "📍", with: "<br>• ")
         
         // Заменяем переносы строк на <br>
-        html = html.replacingOccurrences(of: "\n", with: "<br>")
+        processedContent = processedContent.replacingOccurrences(of: "\n", with: "<br>")
         
-        // Добавляем изображения в HTML
-        var imagesHTML = ""
+        // Добавляем текст как HTML элемент
+        htmlArray.append([
+            "tag": "p",
+            "children": [processedContent]
+        ])
+        
+        // Добавляем изображения
         for (index, image) in images.enumerated() {
-            imagesHTML += "<img src=\"\(image.url)\" alt=\"Изображение \(index + 1)\"><br><br>"
+            htmlArray.append([
+                "tag": "figure",
+                "children": [
+                    [
+                        "tag": "img",
+                        "attrs": [
+                            "src": image.url,
+                            "alt": "Изображение \(index + 1)"
+                        ]
+                    ]
+                ]
+            ])
         }
         
-        // Вставляем изображения в начало контента
-        if !imagesHTML.isEmpty {
-            html = imagesHTML + html
-        }
-        
-        return html
+        return htmlArray
     }
 }
 
