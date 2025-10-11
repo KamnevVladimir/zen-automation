@@ -36,29 +36,50 @@ final class TelegraphPublisher: TelegraphPublisherProtocol {
         let response = try await client.send(request)
         
         guard response.status == .ok else {
+            let errorBody = response.body.map { String(buffer: $0) } ?? "No error body"
             logger.error("❌ Telegraph API error: \(response.status)")
+            logger.error("   Response body: \(errorBody)")
             throw Abort(.badRequest, reason: "Telegraph API error: \(response.status)")
         }
         
-        struct TelegraphResponse: Codable {
+        // Логируем тело ответа для диагностики
+        let bodyString = response.body.map { String(buffer: $0) } ?? "{}"
+        logger.info("📥 Telegraph response body: \(bodyString.prefix(500))")
+        
+        // Telegraph API может возвращать два формата:
+        // 1. С ok: { "ok": true, "result": {...} }
+        // 2. Прямо result: { "path": "...", "url": "...", "title": "..." }
+        
+        struct TelegraphResponseWithOk: Codable {
             let ok: Bool
             let result: TelegraphPage
-            
-            struct TelegraphPage: Codable {
-                let path: String
-                let url: String
-                let title: String
+        }
+        
+        struct TelegraphPage: Codable {
+            let path: String
+            let url: String
+            let title: String
+        }
+        
+        // Пробуем сначала формат с "ok"
+        if let responseWithOk = try? response.content.decode(TelegraphResponseWithOk.self) {
+            if responseWithOk.ok {
+                logger.info("✅ Telegraph страница создана: \(responseWithOk.result.url)")
+                return responseWithOk.result.url
+            } else {
+                throw Abort(.badRequest, reason: "Telegraph returned ok=false")
             }
         }
         
-        let telegraphResponse = try response.content.decode(TelegraphResponse.self)
-        
-        if telegraphResponse.ok {
-            logger.info("✅ Telegraph страница создана: \(telegraphResponse.result.url)")
-            return telegraphResponse.result.url
-        } else {
-            throw Abort(.badRequest, reason: "Failed to create Telegraph page")
+        // Если не получилось - пробуем прямой формат
+        if let directPage = try? response.content.decode(TelegraphPage.self) {
+            logger.info("✅ Telegraph страница создана: \(directPage.url)")
+            return directPage.url
         }
+        
+        // Если оба формата не подошли
+        logger.error("❌ Не удалось распарсить ответ Telegraph")
+        throw Abort(.badRequest, reason: "Failed to parse Telegraph response")
     }
     
     /// Конвертирует Markdown контент в HTML-массив для Telegraph API
