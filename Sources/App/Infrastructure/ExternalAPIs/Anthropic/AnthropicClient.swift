@@ -134,7 +134,13 @@ final class AnthropicClient: AIClientProtocol {
     
     func generateImage(prompt: String) async throws -> String {
         // Anthropic не генерирует изображения, используем Stability AI
-        let uploadService = TelegraphImageUploadService(client: client, logger: logger)
+        // Используем Telegram Bot API для загрузки (надёжнее Telegraph)
+        let uploadService = TelegramImageUploader(
+            client: client,
+            logger: logger,
+            botToken: AppConfig.telegramToken,
+            adminChatId: AppConfig.telegramAdminChatId
+        )
         let stabilityClient = StabilityAIClient(
             client: client,
             apiKey: AppConfig.stabilityAIKey,

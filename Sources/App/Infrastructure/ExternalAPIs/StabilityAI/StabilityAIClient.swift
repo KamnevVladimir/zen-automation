@@ -75,11 +75,11 @@ final class StabilityAIClient {
         logger.info("✅ Изображение успешно сгенерировано")
         logger.info("📦 Размер изображения: \(imageBytes.count) байт")
         
-        // Загружаем на Telegraph и получаем публичный URL
-        let publicURL = try await uploadService.uploadImage(data: imageBytes, format: .png)
-        logger.info("✅ Изображение загружено на Telegraph: \(publicURL)")
+        // Загружаем через upload service (Telegram Bot API или другой)
+        let fileIdOrURL = try await uploadService.uploadImage(data: imageBytes, format: .png)
+        logger.info("✅ Изображение загружено: \(fileIdOrURL)")
         
-        return publicURL
+        return fileIdOrURL
     }
 }
 
