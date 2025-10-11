@@ -85,7 +85,7 @@ final class RSSPublisher {
     func generateRSSFeed(posts: [ZenPostModel]) -> String {
         let rssItems = posts.map { post -> String in
             let description = post.shortPost ?? post.fullPost ?? ""
-            """
+            return """
             <item>
                 <title><![CDATA[\(post.title)]]></title>
                 <description><![CDATA[\(description.prefix(500))...]]></description>
