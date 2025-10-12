@@ -26,28 +26,67 @@ final class SmartPromoService {
         
         logger.info("📚 Найдено \(ourPosts.count) наших статей для анализа")
         
-        // 2. Реальные популярные посты в Яндекс Дзене
-        // ВАЖНО: Эти ссылки ведут на реальные популярные темы в Дзене
-        let exampleQuestions = [
-            ZenQuestion(
-                postUrl: "https://dzen.ru/travelblog",
-                postTitle: "Путешествия и туризм - популярные вопросы",
-                question: "Подскажите, где искать дешёвые билеты? Какие сервисы используете?",
-                category: "билеты"
-            ),
-            ZenQuestion(
-                postUrl: "https://dzen.ru/budget-travel",
-                postTitle: "Бюджетные путешествия",
-                question: "Сколько денег нужно на 2 недели отдыха в Таиланде?",
-                category: "бюджет"
-            ),
-            ZenQuestion(
-                postUrl: "https://dzen.ru/visa-help",
-                postTitle: "Визовая поддержка путешественникам",
-                question: "Нужна ли виза в Грузию для россиян? Сколько можно находиться?",
-                category: "виза"
-            )
+        // 2. Используем Claude для поиска РЕАЛЬНЫХ популярных постов в Яндекс Дзене
+        logger.info("🌐 Claude ищет реальные посты в Яндекс Дзене...")
+        
+        let searchPrompt = """
+        Найди 3 РЕАЛЬНЫХ популярных поста в Яндекс Дзене про путешествия, где люди активно задают вопросы в комментариях.
+        
+        КРИТЕРИИ ПОИСКА:
+        - Посты должны быть про: билеты, визы, бюджет путешествий, отдых за границей
+        - Посты должны быть популярными (много просмотров и комментариев)
+        - Опубликованы в последние 2-3 месяца (актуальные)
+        - На русском языке
+        
+        Используй поиск в Яндекс Дзене по запросам:
+        - "где купить дешёвые билеты 2025"
+        - "сколько денег нужно на отдых таиланд"
+        - "виза россиянам куда не нужна"
+        
+        ВЕРНИ JSON (строго в таком формате):
+        [
+          {
+            "url": "полная ссылка на пост в dzen.ru",
+            "title": "название поста",
+            "typical_question": "типичный вопрос из комментариев",
+            "category": "билеты/виза/бюджет"
+          }
         ]
+        
+        ВАЖНО: Ссылки должны быть РЕАЛЬНЫМИ и работающими!
+        """
+        
+        let searchResult = try await aiClient.generateText(
+            systemPrompt: "Ты - поисковый ассистент который ищет реальные посты в Яндекс Дзене. Отвечай только в JSON формате.",
+            userPrompt: searchPrompt
+        )
+        
+        // Парсим результат поиска
+        guard let jsonData = searchResult.data(using: .utf8),
+              let postsArray = try? JSONSerialization.jsonObject(with: jsonData) as? [[String: Any]] else {
+            logger.warning("⚠️ Claude не смог найти посты, использую запасные варианты")
+            // Запасные реальные категории Дзена
+            return try await useFallbackPosts(ourPosts: ourPosts)
+        }
+        
+        // Конвертируем в ZenQuestion
+        let exampleQuestions = postsArray.compactMap { post -> ZenQuestion? in
+            guard let url = post["url"] as? String,
+                  let title = post["title"] as? String,
+                  let question = post["typical_question"] as? String,
+                  let category = post["category"] as? String else {
+                return nil
+            }
+            
+            return ZenQuestion(
+                postUrl: url,
+                postTitle: title,
+                question: question,
+                category: category
+            )
+        }
+        
+        logger.info("✅ Claude нашёл \(exampleQuestions.count) реальных постов")
         
         // 3. Для каждого вопроса находим подходящую НАШУ статью и генерируем ответ
         var suggestions: [PromoSuggestion] = []
@@ -225,6 +264,63 @@ final class SmartPromoService {
             answer: answer.trimmingCharacters(in: .whitespacesAndNewlines),
             relevanceScore: relevanceScore
         )
+    }
+    
+    /// Запасные варианты если Claude не смог найти посты
+    private func useFallbackPosts(ourPosts: [ZenPostModel]) async throws -> [PromoSuggestion] {
+        logger.info("📋 Использую запасные популярные категории Дзена")
+        
+        // Популярные разделы Дзена где можно комментировать
+        let fallbackQuestions = [
+            ZenQuestion(
+                postUrl: "https://dzen.ru/travel",
+                postTitle: "Раздел 'Путешествия' в Яндекс Дзен",
+                question: "Где искать дешёвые билеты на самолёт?",
+                category: "билеты"
+            ),
+            ZenQuestion(
+                postUrl: "https://dzen.ru/news/rubric/tourism",
+                postTitle: "Новости туризма",
+                question: "Сколько денег брать с собой в отпуск?",
+                category: "бюджет"
+            ),
+            ZenQuestion(
+                postUrl: "https://dzen.ru/id/tourism-tips",
+                postTitle: "Советы путешественникам",
+                question: "Куда можно поехать без визы из России?",
+                category: "виза"
+            )
+        ]
+        
+        var suggestions: [PromoSuggestion] = []
+        
+        for question in fallbackQuestions {
+            let matchingArticle = try await findBestMatchingArticle(
+                question: question,
+                ourPosts: ourPosts
+            )
+            
+            let response = try await generateSmartResponse(
+                question: question,
+                matchingArticle: matchingArticle
+            )
+            
+            suggestions.append(
+                PromoSuggestion(
+                    postUrl: question.postUrl,
+                    postTitle: question.postTitle,
+                    question: question.question,
+                    suggestedResponse: response.answer,
+                    ourArticleUrl: matchingArticle?.zenArticleUrl,
+                    ourArticleTitle: matchingArticle?.title,
+                    relevanceScore: response.relevanceScore
+                )
+            )
+            
+            try await Task.sleep(nanoseconds: 500_000_000) // 0.5 секунды
+        }
+        
+        return suggestions
     }
 }
 
