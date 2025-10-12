@@ -40,8 +40,8 @@ final class ContentValidator: ContentValidatorProtocol {
             score -= 0.2
         }
         
-        // 2. Проверка структуры
-        if !body.contains("##") && !body.contains("<h2>") {
+        // 2. Проверка структуры - ищем **жирный текст** как подзаголовки
+        if !body.contains("**") && !body.contains("##") && !body.contains("<h2>") {
             issues.append("Отсутствуют подзаголовки")
             score -= 0.15
         }
