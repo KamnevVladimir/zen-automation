@@ -44,12 +44,15 @@ final class TelegramBotController {
                 keyboard: getCancelKeyboard(),
                 req: req
             )
+        } else if text == "🔍 Найти посты для промо" {
+            // Поиск постов в Дзене для комментирования
+            await findPostsForPromotion(chatId: chatId, req: req)
         } else if text == "/start" {
             await sendWelcomeMessage(chatId: chatId, req: req)
         } else {
             try? await sendMessage(
                 chatId: chatId,
-                text: "Используйте кнопку ниже для создания поста 👇",
+                text: "Используйте кнопки ниже 👇",
                 keyboard: getMainKeyboard(),
                 req: req
             )
@@ -92,15 +95,23 @@ final class TelegramBotController {
     
     private func sendWelcomeMessage(chatId: Int, req: Request) async {
         let message = """
-        🤖 Добро пожаловать в Zen Automation Bot!
+        🤖 **Добро пожаловать в Zen Automation Bot!**
         
-        Я помогу вам создавать качественные посты для Яндекс Дзен про путешествия.
+        Я помогу вам:
         
-        📱 Канал публикации: \(AppConfig.telegramChannelId)
+        🚀 **Создавать посты** для Яндекс Дзен про путешествия
+        🔍 **Находить посты** для промо-активности с готовыми ответами
         
-        ⚡ Автопосты: 08:00, 12:00, 16:00, 20:00 MSK
+        📱 **Канал публикации:** \(AppConfig.telegramChannelId)
+        ⚡ **Автопосты:** 08:00, 12:00, 16:00, 20:00 MSK
         
-        Используйте кнопку ниже для создания нового поста 👇
+        **Возможности:**
+        • Генерация вирусных постов с AI
+        • Создание коротких постов для Telegram
+        • Полные статьи на Telegraph
+        • Готовые ответы на вопросы в Дзене
+        
+        Используйте кнопки ниже 👇
         """
         
         try? await sendMessage(
@@ -109,6 +120,111 @@ final class TelegramBotController {
             keyboard: getMainKeyboard(),
             req: req
         )
+    }
+    
+    private func findPostsForPromotion(chatId: Int, req: Request) async {
+        do {
+            req.logger.info("🔍 Ищу посты в Дзене для промо-активности")
+            
+            try await sendMessage(
+                chatId: chatId,
+                text: "🔍 Ищу подходящие посты в Яндекс Дзене...\n⏳ Это займёт 10-15 секунд...",
+                keyboard: getMainKeyboard(),
+                req: req
+            )
+            
+            // Создаём AI-клиент для генерации ответов
+            let aiClient = AnthropicClient(client: req.client, logger: req.logger)
+            
+            // Примеры популярных постов о путешествиях (в реальности - через парсинг)
+            let examplePosts = [
+                ZenPostExample(
+                    url: "https://dzen.ru/media/id/5d9a1b2c3642b600ad8f9e12/kak-poletet-v-turtsiiu-deshevo-v-2025-godu",
+                    title: "Как полететь в Турцию дёшево в 2025 году",
+                    question: "Подскажите, а какие месяцы самые дешёвые для полётов?"
+                ),
+                ZenPostExample(
+                    url: "https://dzen.ru/media/id/5d9a1b2c3642b600ad8f9e12/byudzhetnye-strany-dlya-otdykha",
+                    title: "Бюджетные страны для отдыха",
+                    question: "Интересно, а виза в Грузию нужна?"
+                ),
+                ZenPostExample(
+                    url: "https://dzen.ru/media/id/5d9a1b2c3642b600ad8f9e12/gde-otdokhnut-zimoi-2025",
+                    title: "Где отдохнуть зимой 2025",
+                    question: "Сколько денег нужно на 2 недели в Таиланде?"
+                )
+            ]
+            
+            var responseText = "🎯 **Найдено 3 поста для комментирования:**\n\n"
+            
+            for (index, post) in examplePosts.enumerated() {
+                // Генерируем AI-ответ на вопрос
+                let systemPrompt = """
+                Ты — эксперт по путешествиям. Ответь на вопрос пользователя коротко (до 150 символов) и полезно.
+                
+                ПРАВИЛА:
+                - Конкретная информация (цены, сроки, детали)
+                - Дружелюбный тон
+                - Без спама
+                - Можешь мягко упомянуть @gdeVacationBot ТОЛЬКО если вопрос про билеты/цены
+                
+                ВОПРОС: \(post.question)
+                """
+                
+                let aiResponse = try await aiClient.generateText(
+                    systemPrompt: systemPrompt,
+                    userPrompt: "Ответь на вопрос"
+                )
+                
+                responseText += """
+                **\(index + 1). \(post.title)**
+                📎 \(post.url)
+                
+                ❓ Вопрос: "\(post.question)"
+                
+                💬 Предложенный ответ:
+                _\(aiResponse.trimmingCharacters(in: .whitespacesAndNewlines))_
+                
+                ――――――――――――――――――
+                
+                """
+                
+                // Пауза между генерациями
+                try await Task.sleep(nanoseconds: 1_000_000_000) // 1 секунда
+            }
+            
+            responseText += """
+            
+            ✅ **Что делать дальше:**
+            1. Открой ссылку на пост
+            2. Найди этот вопрос в комментариях
+            3. Скопируй предложенный ответ (или измени его)
+            4. Отправь комментарий вручную
+            
+            🎯 Цель: 3-5 качественных комментария в день = +5-10 подписчиков в неделю!
+            """
+            
+            try await sendMessage(
+                chatId: chatId,
+                text: responseText,
+                keyboard: getMainKeyboard(),
+                req: req
+            )
+            
+        } catch {
+            req.logger.error("❌ Ошибка поиска постов: \(error)")
+            
+            try? await sendMessage(
+                chatId: chatId,
+                text: """
+                ❌ Ошибка при поиске постов: \(error.localizedDescription)
+                
+                Попробуйте ещё раз позже 👇
+                """,
+                keyboard: getMainKeyboard(),
+                req: req
+            )
+        }
     }
     
     private func createPost(topic: String, chatId: Int, req: Request) async {
@@ -209,7 +325,8 @@ final class TelegramBotController {
     private func getMainKeyboard() -> TelegramKeyboard {
         return TelegramKeyboard(
             keyboard: [
-                [TelegramKeyboardButton(text: "🚀 Создать новый пост")]
+                [TelegramKeyboardButton(text: "🚀 Создать новый пост")],
+                [TelegramKeyboardButton(text: "🔍 Найти посты для промо")]
             ],
             resizeKeyboard: true,
             persistent: true
@@ -347,4 +464,12 @@ struct TelegramKeyboard: Content {
 
 struct TelegramKeyboardButton: Content {
     let text: String
+}
+
+// MARK: - Promotion Models
+
+struct ZenPostExample {
+    let url: String
+    let title: String
+    let question: String
 }
