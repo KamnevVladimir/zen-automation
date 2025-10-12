@@ -78,6 +78,15 @@ private func configureQueues(_ app: Application) throws {
         notifier: TelegramNotifier(app: app)
     ))
     
+    // Регистрация джобы для промо-активности
+    app.queues.add(ZenEngagementJob(
+        engagementService: ZenWebScraper(
+            client: app.client,
+            logger: app.logger
+        ),
+        logger: app.logger
+    ))
+    
     // Запуск планировщика
     try app.queues.startInProcessScheduler()
     
@@ -101,6 +110,25 @@ private func setupDailySchedule(_ app: Application) throws {
             .on(.default)
         
         app.logger.info("📝 Настроено расписание: \(schedule.timeString) - \(schedule.templateType.rawValue)")
+    }
+    
+    // Настройка расписания для промо-активности
+    try setupPromotionSchedule(app)
+}
+
+/// Настройка расписания для промо-активности
+private func setupPromotionSchedule(_ app: Application) throws {
+    let promotionHours = PromotionConfig.activeHours
+    
+    for hour in promotionHours {
+        let cronExpression = "0 \(hour) * * *" // Каждый день в указанный час
+        
+        app.queues.schedule(ZenEngagementJob.self)
+            .using(Calendar(identifier: .gregorian))
+            .cron(cronExpression)
+            .on(.default)
+        
+        app.logger.info("🎯 Настроена промо-активность: \(hour):00")
     }
 }
 

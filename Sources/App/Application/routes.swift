@@ -77,6 +77,45 @@ func routes(_ app: Application) throws {
         }
     }
     
+    // Ручной запуск промо-активности (для тестирования)
+    api.post("promote") { req async throws -> Response in
+        let engagementService = ZenWebScraper(
+            client: req.application.client,
+            logger: req.application.logger
+        )
+        
+        do {
+            // Ищем посты для комментирования
+            let posts = try await engagementService.findPostsForCommenting(
+                keywords: PromotionConfig.searchKeywords
+            )
+            
+            // Ищем вопросы в комментариях
+            var totalQuestions = 0
+            for post in posts.prefix(2) {
+                let questions = try await engagementService.findQuestionsInComments(postUrl: post.url)
+                totalQuestions += questions.count
+            }
+            
+            let result = [
+                "success": true,
+                "posts_found": posts.count,
+                "questions_found": totalQuestions,
+                "message": "Промо-активность запущена успешно"
+            ]
+            
+            return try await result.encodeResponse(for: req)
+            
+        } catch {
+            let result = [
+                "success": false,
+                "error": error.localizedDescription
+            ]
+            
+            return try await result.encodeResponse(for: req)
+        }
+    }
+    
     // Метрики
     api.get("metrics") { req async throws -> Response in
         let totalPosts = try await ZenPostModel.query(on: req.db).count()
