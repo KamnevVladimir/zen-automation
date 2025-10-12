@@ -26,67 +26,17 @@ final class SmartPromoService {
         
         logger.info("📚 Найдено \(ourPosts.count) наших статей для анализа")
         
-        // 2. Используем Claude для поиска РЕАЛЬНЫХ популярных постов в Яндекс Дзене
-        logger.info("🌐 Claude ищет реальные посты в Яндекс Дзене...")
+        // 2. Загружаем РЕАЛЬНЫЕ посты из конфиг файла (который обновляется вручную)
+        logger.info("📂 Загружаю реальные посты из zen_promo_posts.json...")
         
-        let searchPrompt = """
-        Найди 3 РЕАЛЬНЫХ популярных поста в Яндекс Дзене про путешествия, где люди активно задают вопросы в комментариях.
+        let exampleQuestions = try loadRealZenPosts()
         
-        КРИТЕРИИ ПОИСКА:
-        - Посты должны быть про: билеты, визы, бюджет путешествий, отдых за границей
-        - Посты должны быть популярными (много просмотров и комментариев)
-        - Опубликованы в последние 2-3 месяца (актуальные)
-        - На русском языке
-        
-        Используй поиск в Яндекс Дзене по запросам:
-        - "где купить дешёвые билеты 2025"
-        - "сколько денег нужно на отдых таиланд"
-        - "виза россиянам куда не нужна"
-        
-        ВЕРНИ JSON (строго в таком формате):
-        [
-          {
-            "url": "полная ссылка на пост в dzen.ru",
-            "title": "название поста",
-            "typical_question": "типичный вопрос из комментариев",
-            "category": "билеты/виза/бюджет"
-          }
-        ]
-        
-        ВАЖНО: Ссылки должны быть РЕАЛЬНЫМИ и работающими!
-        """
-        
-        let searchResult = try await aiClient.generateText(
-            systemPrompt: "Ты - поисковый ассистент который ищет реальные посты в Яндекс Дзене. Отвечай только в JSON формате.",
-            userPrompt: searchPrompt
-        )
-        
-        // Парсим результат поиска
-        guard let jsonData = searchResult.data(using: .utf8),
-              let postsArray = try? JSONSerialization.jsonObject(with: jsonData) as? [[String: Any]] else {
-            logger.warning("⚠️ Claude не смог найти посты, использую запасные варианты")
-            // Запасные реальные категории Дзена
+        if exampleQuestions.isEmpty {
+            logger.warning("⚠️ Нет постов в конфиг файле, использую запасные варианты")
             return try await useFallbackPosts(ourPosts: ourPosts)
         }
         
-        // Конвертируем в ZenQuestion
-        let exampleQuestions = postsArray.compactMap { post -> ZenQuestion? in
-            guard let url = post["url"] as? String,
-                  let title = post["title"] as? String,
-                  let question = post["typical_question"] as? String,
-                  let category = post["category"] as? String else {
-                return nil
-            }
-            
-            return ZenQuestion(
-                postUrl: url,
-                postTitle: title,
-                question: question,
-                category: category
-            )
-        }
-        
-        logger.info("✅ Claude нашёл \(exampleQuestions.count) реальных постов")
+        logger.info("✅ Загружено \(exampleQuestions.count) реальных постов из конфига")
         
         // 3. Для каждого вопроса находим подходящую НАШУ статью и генерируем ответ
         var suggestions: [PromoSuggestion] = []
@@ -266,7 +216,39 @@ final class SmartPromoService {
         )
     }
     
-    /// Запасные варианты если Claude не смог найти посты
+    /// Загружает реальные посты из конфиг файла zen_promo_posts.json
+    private func loadRealZenPosts() throws -> [ZenQuestion] {
+        let fileURL = URL(fileURLWithPath: "zen_promo_posts.json")
+        
+        guard let jsonData = try? Data(contentsOf: fileURL),
+              let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+              let postsArray = json["posts"] as? [[String: Any]] else {
+            logger.warning("⚠️ Не удалось загрузить zen_promo_posts.json")
+            return []
+        }
+        
+        return postsArray.compactMap { postDict -> ZenQuestion? in
+            guard let url = postDict["url"] as? String,
+                  !url.contains("ВСТАВЬ_СЮДА"), // Пропускаем плейсхолдеры
+                  let title = postDict["title"] as? String,
+                  let questions = postDict["typical_questions"] as? [String],
+                  let category = postDict["category"] as? String else {
+                return nil
+            }
+            
+            // Берём первый вопрос из списка
+            let question = questions.first ?? "Общий вопрос про путешествия"
+            
+            return ZenQuestion(
+                postUrl: url,
+                postTitle: title,
+                question: question,
+                category: category
+            )
+        }
+    }
+    
+    /// Запасные варианты если нет постов в конфиге
     private func useFallbackPosts(ourPosts: [ZenPostModel]) async throws -> [PromoSuggestion] {
         logger.info("📋 Использую запасные популярные категории Дзена")
         
