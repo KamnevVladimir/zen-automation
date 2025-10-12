@@ -4,6 +4,7 @@ import FluentPostgresDriver
 import PostgresKit
 import Queues
 import NIOSSL
+import Foundation
 
 public func configure(_ app: Application) throws {
     // Конфигурация сервера
@@ -53,9 +54,53 @@ public func configure(_ app: Application) throws {
     // Запуск миграций автоматически
     try app.autoMigrate().wait()
     
+    // Миграции для очередей
+    try app.queues.setup(app)
+    
+    // Конфигурация очередей и планировщика
+    try configureQueues(app)
+    
     // Маршруты
     try routes(app)
     
     app.logger.info("✅ Zen Automation сконфигурирован")
+}
+
+/// Конфигурация очередей и планировщика задач
+private func configureQueues(_ app: Application) throws {
+    // Настройка очередей с базой данных
+    app.queues.use(.database(app.db))
+    
+    // Регистрация джобов
+    app.queues.add(DailyPostJob(
+        contentGenerator: ContentGeneratorService(),
+        publisher: ZenPublisher(),
+        notifier: TelegramNotifier(app: app)
+    ))
+    
+    // Запуск планировщика
+    try app.queues.startInProcessScheduler()
+    
+    // Настройка расписания
+    try setupDailySchedule(app)
+    
+    app.logger.info("📅 Планировщик задач настроен")
+}
+
+/// Настройка ежедневного расписания постов
+private func setupDailySchedule(_ app: Application) throws {
+    let schedules = ScheduleConfig.defaultSchedules
+    
+    for schedule in schedules {
+        // Создаём cron выражение для ежедневного выполнения
+        let cronExpression = "\(schedule.minute) \(schedule.hour) * * *"
+        
+        app.queues.schedule(DailyPostJob.self)
+            .using(Calendar(identifier: .gregorian))
+            .cron(cronExpression)
+            .on(.default)
+        
+        app.logger.info("📝 Настроено расписание: \(schedule.timeString) - \(schedule.templateType.rawValue)")
+    }
 }
 

@@ -28,6 +28,55 @@ func routes(_ app: Application) throws {
             .all()
     }
     
+    // Ручной запуск генерации поста (для тестирования)
+    api.post("generate") { req async throws -> Response in
+        let contentGenerator = ContentGeneratorService()
+        let publisher = ZenPublisher()
+        let notifier = TelegramNotifier(app: req.application)
+        
+        // Создаём запрос на генерацию
+        let request = GenerationRequest(
+            templateType: .destination,
+            topic: "Куда полететь на выходные",
+            destinations: ["Турция", "Египет"],
+            priceData: nil,
+            trendData: nil
+        )
+        
+        do {
+            // Генерируем пост
+            let response = try await contentGenerator.generatePost(
+                request: request,
+                db: req.db
+            )
+            
+            // Публикуем пост
+            guard let post = try await ZenPostModel.find(response.postId, on: req.db) else {
+                throw Abort(.notFound, reason: "Post not found")
+            }
+            
+            let publishResult = try await publisher.publish(post: post, db: req.db)
+            
+            let result = [
+                "success": true,
+                "post_id": response.postId.uuidString,
+                "zen_article_id": publishResult.zenArticleId ?? "N/A",
+                "message": "Пост успешно сгенерирован и опубликован"
+            ]
+            
+            return try await result.encodeResponse(for: req)
+            
+        } catch {
+            let result = [
+                "success": false,
+                "error": error.localizedDescription
+            ]
+            
+            try? await notifier.sendError(error: "Ошибка ручной генерации: \(error.localizedDescription)")
+            return try await result.encodeResponse(for: req)
+        }
+    }
+    
     // Метрики
     api.get("metrics") { req async throws -> Response in
         let totalPosts = try await ZenPostModel.query(on: req.db).count()
