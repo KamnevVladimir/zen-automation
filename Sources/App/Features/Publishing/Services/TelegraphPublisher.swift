@@ -245,14 +245,16 @@ final class TelegraphPublisher: TelegraphPublisherProtocol {
                     .replacingOccurrences(of: "📍 ", with: "")
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 
-                listItems.append(escapeHtml(listItemText))
+                // Обрабатываем жирный текст в элементах списка
+                let processedListItem = processTextWithBoldAndLinks(listItemText)
+                listItems.append(processedListItem)
             } else {
                 // Если есть накопленные элементы списка, создаём список
                 if !listItems.isEmpty {
                     let listChildren = listItems.map { item in
                         [
                             "tag": "li",
-                            "children": [item]
+                            "children": item is [Any] ? item : [item]
                         ]
                     }
                     
@@ -277,21 +279,12 @@ final class TelegraphPublisher: TelegraphPublisherProtocol {
                         .replacingOccurrences(of: "</b>", with: "**")
                 }
                 
-                // Проверяем, есть ли жирный текст **текст**
-                if processedParagraph.contains("**") {
-                    // Создаём структурированный HTML с поддержкой жирного текста
-                    let paragraphChildren = parseBoldText(processedParagraph)
-                    htmlArray.append([
-                        "tag": "p",
-                        "children": paragraphChildren
-                    ])
-                } else {
-                    // Обычный абзац без форматирования
-                    htmlArray.append([
-                        "tag": "p",
-                        "children": [escapeHtml(processedParagraph)]
-                    ])
-                }
+                // Обрабатываем текст с жирным выделением и ссылками
+                let paragraphChildren = processTextWithBoldAndLinks(processedParagraph)
+                htmlArray.append([
+                    "tag": "p",
+                    "children": paragraphChildren
+                ])
             }
         }
         
@@ -300,7 +293,7 @@ final class TelegraphPublisher: TelegraphPublisherProtocol {
             let listChildren = listItems.map { item in
                 [
                     "tag": "li",
-                    "children": [item]
+                    "children": item is [Any] ? item : [item]
                 ]
             }
             
@@ -345,6 +338,24 @@ final class TelegraphPublisher: TelegraphPublisherProtocol {
         return htmlArray
     }
     
+    /// Обрабатывает текст с жирным выделением и ссылками на бота
+    func processTextWithBoldAndLinks(_ text: String) -> [Any] {
+        var processedText = text
+        
+        // Сначала заменяем упоминания бота на ссылки
+        processedText = processedText.replacingOccurrences(
+            of: "@gdeVacationBot",
+            with: "**@gdeVacationBot**"
+        )
+        
+        // Проверяем, есть ли жирный текст или ссылки
+        if processedText.contains("**") {
+            return parseBoldText(processedText)
+        } else {
+            return [escapeHtml(processedText)]
+        }
+    }
+    
     /// Парсит текст с жирным выделением **текст** в структурированный HTML для Telegraph
     func parseBoldText(_ text: String) -> [Any] {
         var children: [Any] = []
@@ -371,10 +382,22 @@ final class TelegraphPublisher: TelegraphPublisherProtocol {
             
             // Добавляем жирный текст
             let boldText = (text as NSString).substring(with: match.range(at: 1))
-            children.append([
-                "tag": "b",
-                "children": [escapeHtml(boldText)]
-            ])
+            
+            // Проверяем, является ли это упоминанием бота
+            if boldText == "@gdeVacationBot" {
+                children.append([
+                    "tag": "a",
+                    "attrs": [
+                        "href": "https://t.me/gdeVacationBot"
+                    ],
+                    "children": ["@gdeVacationBot"]
+                ])
+            } else {
+                children.append([
+                    "tag": "b",
+                    "children": [escapeHtml(boldText)]
+                ])
+            }
             
             lastIndex = match.range.location + match.range.length
         }
