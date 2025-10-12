@@ -57,8 +57,21 @@ public func configure(_ app: Application) throws {
     // Маршруты
     try routes(app)
     
+    // Запускаем встроенный планировщик для автопостов
+    let scheduler = SimpleScheduler(app: app)
+    scheduler.startPostSchedule()
+    
+    // Сохраняем ссылку на планировщик чтобы не удалился
+    app.storage[SimpleSchedulerKey.self] = scheduler
+    
     app.logger.info("✅ Zen Automation сконфигурирован")
-    app.logger.info("ℹ️ Для автоматических постов используйте ручные cron задачи или Railway Cron Jobs")
-    app.logger.info("ℹ️ Эндпоинты: POST /api/v1/generate - генерация поста, POST /api/v1/promote - промо-активность")
+    app.logger.info("📅 Автопосты: 08:00, 12:00, 16:00, 20:00 MSK")
+    app.logger.info("ℹ️ Эндпоинты: POST /api/v1/generate - ручная генерация поста")
+}
+
+// MARK: - Storage Key для планировщика
+
+struct SimpleSchedulerKey: StorageKey {
+    typealias Value = SimpleScheduler
 }
 
