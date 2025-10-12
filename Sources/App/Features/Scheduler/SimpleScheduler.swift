@@ -91,7 +91,13 @@ final class SimpleScheduler {
                 logger: app.logger
             )
             let notifier = TelegramNotifier(client: app.client, logger: app.logger)
-            let publisher = ZenPublisher(logger: app.logger, notifier: notifier)
+            
+            // ВАЖНО: используем TelegramChannelPublisher для РЕАЛЬНОЙ публикации в канал
+            let publisher = TelegramChannelPublisher(
+                client: app.client,
+                logger: app.logger,
+                contentGenerator: contentGenerator
+            )
             
             // Создаём запрос
             let request = GenerationRequest(
@@ -118,11 +124,25 @@ final class SimpleScheduler {
             let publishResult = try await publisher.publish(post: post, db: app.db)
             
             if publishResult.success {
-                app.logger.info("✅ Пост опубликован автоматически: \(publishResult.zenArticleId ?? "N/A")")
+                app.logger.info("✅ Пост опубликован в Telegram канал: \(publishResult.publishedURL ?? "N/A")")
                 
-                // Уведомляем об успехе
+                // Уведомляем админа об успехе
                 try? await notifier.sendNotification(
-                    message: "✅ Автопост опубликован!\n\n📝 \(response.title)\n🕐 \(Date())"
+                    message: """
+                    ✅ <b>Автопост опубликован в канал!</b>
+                    
+                    📝 <b>\(response.title)</b>
+                    
+                    📊 <b>Детали:</b>
+                    • Короткий пост: \(response.shortPost.count) символов
+                    • Полный пост: \(response.fullPost.count) символов
+                    • Изображений: \(response.imageURLs.count)
+                    
+                    🔗 <b>Канал:</b> \(AppConfig.telegramChannelId)
+                    📖 <b>Telegraph:</b> будет создан при публикации
+                    
+                    🕐 \(Date())
+                    """
                 )
             } else {
                 app.logger.error("❌ Ошибка публикации: \(publishResult.errorMessage ?? "Unknown")")
