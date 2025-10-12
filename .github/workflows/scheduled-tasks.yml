@@ -1,0 +1,68 @@
+name: Scheduled Posts and Promotion
+
+on:
+  schedule:
+    # Генерация постов 4 раза в день (UTC время)
+    # Московское время = UTC + 3 часа
+    - cron: '0 5 * * *'   # 8:00 по Москве - Weekend destinations
+    - cron: '0 9 * * *'   # 12:00 по Москве - Budget destinations
+    - cron: '0 13 * * *'  # 16:00 по Москве - Travel lifehacks
+    - cron: '0 17 * * *'  # 20:00 по Москве - Trending destinations
+    
+  workflow_dispatch: # Ручной запуск через GitHub Actions UI
+
+jobs:
+  generate-post:
+    name: Generate and Publish Post
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Generate post
+        run: |
+          echo "🚀 Запуск генерации поста..."
+          
+          RESPONSE=$(curl -s -X POST \
+            -w "\n%{http_code}" \
+            https://zen-automation-production.up.railway.app/api/v1/generate)
+          
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+          
+          echo "📊 HTTP Status: $HTTP_CODE"
+          echo "📝 Response: $BODY"
+          
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✅ Пост успешно сгенерирован и опубликован!"
+          else
+            echo "❌ Ошибка генерации поста!"
+            exit 1
+          fi
+      
+      - name: Wait before next action
+        run: sleep 10
+
+  # Раскомментируй, когда будешь готов к промо-активности
+  # promote:
+  #   name: Run Promotion Activity
+  #   runs-on: ubuntu-latest
+  #   
+  #   steps:
+  #     - name: Run promotion
+  #       run: |
+  #         echo "🎯 Запуск промо-активности..."
+  #         
+  #         RESPONSE=$(curl -s -X POST \
+  #           -w "\n%{http_code}" \
+  #           https://zen-automation-production.up.railway.app/api/v1/promote)
+  #         
+  #         HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+  #         BODY=$(echo "$RESPONSE" | head -n-1)
+  #         
+  #         echo "📊 HTTP Status: $HTTP_CODE"
+  #         echo "📝 Response: $BODY"
+  #         
+  #         if [ "$HTTP_CODE" = "200" ]; then
+  #           echo "✅ Промо-активность завершена успешно!"
+  #         else
+  #           echo "⚠️ Возможны проблемы с промо-активностью"
+  #         fi
