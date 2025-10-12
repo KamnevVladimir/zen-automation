@@ -61,20 +61,32 @@ func routes(_ app: Application) throws {
             
             let publishResult = try await publisher.publish(post: post, db: req.db)
             
-            let result = [
-                "success": true,
-                "post_id": response.postId.uuidString,
-                "zen_article_id": publishResult.zenArticleId ?? "N/A",
-                "message": "Пост успешно сгенерирован и опубликован"
-            ]
+            struct GenerateResponse: Content {
+                let success: Bool
+                let post_id: String
+                let zen_article_id: String
+                let message: String
+            }
+            
+            let result = GenerateResponse(
+                success: true,
+                post_id: response.postId.uuidString,
+                zen_article_id: publishResult.zenArticleId ?? "N/A",
+                message: "Пост успешно сгенерирован и опубликован"
+            )
             
             return try await result.encodeResponse(for: req)
             
         } catch {
-            let result = [
-                "success": false,
-                "error": error.localizedDescription
-            ]
+            struct ErrorResponse: Content {
+                let success: Bool
+                let error: String
+            }
+            
+            let result = ErrorResponse(
+                success: false,
+                error: error.localizedDescription
+            )
             
             try? await notifier.sendError(error: "Ошибка ручной генерации: \(error.localizedDescription)")
             return try await result.encodeResponse(for: req)
@@ -101,20 +113,32 @@ func routes(_ app: Application) throws {
                 totalQuestions += questions.count
             }
             
-            let result = [
-                "success": true,
-                "posts_found": posts.count,
-                "questions_found": totalQuestions,
-                "message": "Промо-активность запущена успешно"
-            ]
+            struct PromoteResponse: Content {
+                let success: Bool
+                let posts_found: Int
+                let questions_found: Int
+                let message: String
+            }
+            
+            let result = PromoteResponse(
+                success: true,
+                posts_found: posts.count,
+                questions_found: totalQuestions,
+                message: "Промо-активность запущена успешно"
+            )
             
             return try await result.encodeResponse(for: req)
             
         } catch {
-            let result = [
-                "success": false,
-                "error": error.localizedDescription
-            ]
+            struct ErrorResponse: Content {
+                let success: Bool
+                let error: String
+            }
+            
+            let result = ErrorResponse(
+                success: false,
+                error: error.localizedDescription
+            )
             
             return try await result.encodeResponse(for: req)
         }

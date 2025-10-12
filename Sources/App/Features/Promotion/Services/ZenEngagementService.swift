@@ -83,12 +83,20 @@ final class ZenEngagementService {
 
 // MARK: - Модели данных
 
-struct ZenPostTarget {
+struct ZenPostTarget: Hashable, Equatable {
     let url: String
     let title: String
     let author: String
     let commentCount: Int
     let keywords: [String]
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(url)
+    }
+    
+    static func == (lhs: ZenPostTarget, rhs: ZenPostTarget) -> Bool {
+        return lhs.url == rhs.url
+    }
 }
 
 struct CommentQuestion {
