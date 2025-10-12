@@ -30,9 +30,13 @@ func routes(_ app: Application) throws {
     
     // Ручной запуск генерации поста (для тестирования)
     api.post("generate") { req async throws -> Response in
-        let contentGenerator = ContentGeneratorService()
-        let publisher = ZenPublisher()
-        let notifier = TelegramNotifier(app: req.application)
+        let contentGenerator = ContentGeneratorService(
+            aiClient: AnthropicClient(client: req.application.client, logger: req.application.logger),
+            validator: ContentValidator(),
+            logger: req.application.logger
+        )
+        let notifier = TelegramNotifier(client: req.application.client, logger: req.application.logger)
+        let publisher = ZenPublisher(logger: req.application.logger, notifier: notifier)
         
         // Создаём запрос на генерацию
         let request = GenerationRequest(

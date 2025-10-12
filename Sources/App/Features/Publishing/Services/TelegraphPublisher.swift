@@ -223,7 +223,7 @@ final class TelegraphPublisher: TelegraphPublisherProtocol {
         
         // 2. Обрабатываем контент - разбиваем на абзацы
         let paragraphs = content.components(separatedBy: "\n\n")
-        var listItems: [String] = []
+        var listItems: [Any] = [] // Массив для хранения структурированных элементов списка
         
         for paragraph in paragraphs {
             let trimmedParagraph = paragraph.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -254,7 +254,7 @@ final class TelegraphPublisher: TelegraphPublisherProtocol {
                     let listChildren = listItems.map { item in
                         [
                             "tag": "li",
-                            "children": item is [Any] ? item : [item]
+                            "children": item
                         ]
                     }
                     
@@ -293,7 +293,7 @@ final class TelegraphPublisher: TelegraphPublisherProtocol {
             let listChildren = listItems.map { item in
                 [
                     "tag": "li",
-                    "children": item is [Any] ? item : [item]
+                    "children": item
                 ]
             }
             

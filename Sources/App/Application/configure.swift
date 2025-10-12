@@ -54,81 +54,11 @@ public func configure(_ app: Application) throws {
     // Запуск миграций автоматически
     try app.autoMigrate().wait()
     
-    // Миграции для очередей
-    try app.queues.setup(app)
-    
-    // Конфигурация очередей и планировщика
-    try configureQueues(app)
-    
     // Маршруты
     try routes(app)
     
     app.logger.info("✅ Zen Automation сконфигурирован")
-}
-
-/// Конфигурация очередей и планировщика задач
-private func configureQueues(_ app: Application) throws {
-    // Настройка очередей с базой данных
-    app.queues.use(.database(app.db))
-    
-    // Регистрация джобов
-    app.queues.add(DailyPostJob(
-        contentGenerator: ContentGeneratorService(),
-        publisher: ZenPublisher(),
-        notifier: TelegramNotifier(app: app)
-    ))
-    
-    // Регистрация джобы для промо-активности
-    app.queues.add(ZenEngagementJob(
-        engagementService: ZenWebScraper(
-            client: app.client,
-            logger: app.logger
-        ),
-        logger: app.logger
-    ))
-    
-    // Запуск планировщика
-    try app.queues.startInProcessScheduler()
-    
-    // Настройка расписания
-    try setupDailySchedule(app)
-    
-    app.logger.info("📅 Планировщик задач настроен")
-}
-
-/// Настройка ежедневного расписания постов
-private func setupDailySchedule(_ app: Application) throws {
-    let schedules = ScheduleConfig.defaultSchedules
-    
-    for schedule in schedules {
-        // Создаём cron выражение для ежедневного выполнения
-        let cronExpression = "\(schedule.minute) \(schedule.hour) * * *"
-        
-        app.queues.schedule(DailyPostJob.self)
-            .using(Calendar(identifier: .gregorian))
-            .cron(cronExpression)
-            .on(.default)
-        
-        app.logger.info("📝 Настроено расписание: \(schedule.timeString) - \(schedule.templateType.rawValue)")
-    }
-    
-    // Настройка расписания для промо-активности
-    try setupPromotionSchedule(app)
-}
-
-/// Настройка расписания для промо-активности
-private func setupPromotionSchedule(_ app: Application) throws {
-    let promotionHours = PromotionConfig.activeHours
-    
-    for hour in promotionHours {
-        let cronExpression = "0 \(hour) * * *" // Каждый день в указанный час
-        
-        app.queues.schedule(ZenEngagementJob.self)
-            .using(Calendar(identifier: .gregorian))
-            .cron(cronExpression)
-            .on(.default)
-        
-        app.logger.info("🎯 Настроена промо-активность: \(hour):00")
-    }
+    app.logger.info("ℹ️ Для автоматических постов используйте ручные cron задачи или Railway Cron Jobs")
+    app.logger.info("ℹ️ Эндпоинты: POST /api/v1/generate - генерация поста, POST /api/v1/promote - промо-активность")
 }
 
