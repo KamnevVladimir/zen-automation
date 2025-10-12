@@ -40,6 +40,12 @@ final class ZenPostModel: Model, Content {
     @OptionalField(key: "zen_article_id")
     var zenArticleId: String?
     
+    @OptionalField(key: "zen_article_url")
+    var zenArticleUrl: String?
+    
+    @OptionalField(key: "telegraph_url")
+    var telegraphUrl: String?
+    
     @Timestamp(key: "created_at", on: .create)
     var createdAt: Date?
     

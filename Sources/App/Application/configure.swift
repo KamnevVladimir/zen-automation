@@ -50,6 +50,7 @@ public func configure(_ app: Application) throws {
     app.migrations.add(CreateTrendingDestinations())
     app.migrations.add(CreateGenerationLogs())
     app.migrations.add(AddShortAndFullPost())
+    app.migrations.add(AddZenAndTelegraphUrls())
     
     // Запуск миграций автоматически
     try app.autoMigrate().wait()
