@@ -106,9 +106,8 @@ final class SmartPromoService {
         let articlesContext = ourPosts.map { post in
             """
             Статья: \(post.title)
-            Категория: \(post.category.rawValue)
+            Тип: \(post.templateType)
             Краткое содержание: \(post.shortPost?.prefix(200) ?? "")
-            Telegraph URL: \(post.telegraphUrl ?? "нет")
             """
         }.joined(separator: "\n\n")
         
@@ -160,9 +159,21 @@ final class SmartPromoService {
             return nil // Нет подходящей статьи
         }
         
+        // Telegraph URL генерируется при публикации, сохраняется в ZenPostModel
+        // Для получения нужно взять из системы публикации или сформировать заново
+        // Пока используем заголовок как slug
+        let telegraphSlug = post.title
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "-")
+            .replacingOccurrences(of: "[^a-zа-яё0-9-]", with: "", options: .regularExpression)
+            .prefix(50)
+        
+        // Формируем предполагаемый Telegraph URL
+        let telegraphUrl = "https://telegra.ph/\(telegraphSlug)"
+        
         return MatchingArticle(
             title: post.title,
-            telegraphUrl: post.telegraphUrl,
+            telegraphUrl: telegraphUrl,
             relevanceScore: relevanceScore
         )
     }
