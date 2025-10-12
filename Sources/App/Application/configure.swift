@@ -66,7 +66,9 @@ public func configure(_ app: Application) throws {
     app.storage[SimpleSchedulerKey.self] = scheduler
     
     app.logger.info("✅ Zen Automation сконфигурирован")
-    app.logger.info("📅 Автопосты: 08:00, 12:00, 16:00, 20:00 MSK")
+    app.logger.info("📅 Автопосты: 2 раза в день")
+    app.logger.info("   🌅 08:00 MSK - утренний пост (лайфхаки)")
+    app.logger.info("   🌆 20:00 MSK - вечерний пост (бюджетные направления)")
     app.logger.info("ℹ️ Эндпоинты: POST /api/v1/generate - ручная генерация поста")
 }
 

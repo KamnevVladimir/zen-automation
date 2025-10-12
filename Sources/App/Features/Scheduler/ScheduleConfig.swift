@@ -12,32 +12,44 @@ struct ScheduleConfig {
         }
     }
     
-    static let defaultSchedules: [DailySchedule] = [
-        DailySchedule(
-            hour: 8,
-            minute: 0,
-            templateType: .weekend,
-            topic: "Куда полететь на выходные"
-        ),
-        DailySchedule(
-            hour: 12,
-            minute: 0,
-            templateType: .budget,
-            topic: "Бюджетные направления"
-        ),
-        DailySchedule(
-            hour: 16,
-            minute: 0,
-            templateType: .lifehack,
-            topic: "Лайфхаки для путешественников"
-        ),
-        DailySchedule(
-            hour: 20,
-            minute: 0,
-            templateType: .trending,
-            topic: "Трендовые направления недели"
-        )
+    // Массивы тем для ротации (чтобы контент был разнообразным)
+    static let morningTopics = [
+        "Лайфхаки для экономии в путешествиях",
+        "Как найти дешёвые билеты",
+        "Секреты бронирования отелей",
+        "Ошибки туристов которых можно избежать",
+        "Способы сэкономить на трансферах"
     ]
+    
+    static let eveningTopics = [
+        "Бюджетные направления для отдыха",
+        "Куда поехать без визы из России",
+        "Сравнение популярных направлений",
+        "Недорогие страны для зимнего отдыха",
+        "Экзотические направления с хорошим бюджетом"
+    ]
+    
+    static var defaultSchedules: [DailySchedule] {
+        // Ротация тем каждый день
+        let dayOfYear = Calendar.current.ordinality(of: .day, in: .year, for: Date()) ?? 1
+        
+        return [
+            // УТРЕННИЙ ПОСТ (08:00) - лайфхаки и практика
+            DailySchedule(
+                hour: 8,
+                minute: 0,
+                templateType: .lifehack,
+                topic: morningTopics[dayOfYear % morningTopics.count]
+            ),
+            // ВЕЧЕРНИЙ ПОСТ (20:00) - направления и бюджет
+            DailySchedule(
+                hour: 20,
+                minute: 0,
+                templateType: .budget,
+                topic: eveningTopics[dayOfYear % eveningTopics.count]
+            )
+        ]
+    }
     
     static func nextScheduledTime(from date: Date = Date()) -> Date? {
         let calendar = Calendar.current

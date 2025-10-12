@@ -159,17 +159,29 @@ final class SimpleScheduler {
     
     /// Выбирает направления для поста
     private func selectDestinations(for type: PostCategory) -> [String] {
+        // Расширенный список популярных направлений для россиян в 2025
         let allDestinations = [
+            // Безвизовые популярные
             "Турция", "Египет", "ОАЭ", "Таиланд", "Вьетнам",
-            "Грузия", "Армения", "Узбекистан", "Казахстан",
-            "Индия", "Шри-Ланка", "Мальдивы", "Бали", "Китай"
+            "Грузия", "Армения", "Узбекистан", "Казахстан", "Азербайджан",
+            "Сербия", "Абхазия", "Катар", "Бахрейн", "Оман",
+            // Визовые но популярные
+            "Индия", "Шри-Ланка", "Мальдивы", "Бали", "Китай",
+            "Куба", "Доминикана", "Мексика", "Марокко", "Иордания",
+            // Экзотические
+            "Занзибар", "Маврикий", "Сейшелы", "Малайзия", "Филиппины"
         ]
         
         switch type {
         case .comparison:
+            // Для сравнения - 2 похожих направления
             return Array(allDestinations.shuffled().prefix(2))
         case .budget, .trending:
-            return Array(allDestinations.shuffled().prefix(5))
+            // Для бюджета и трендов - 3-5 вариантов
+            return Array(allDestinations.shuffled().prefix(Int.random(in: 3...5)))
+        case .lifehack:
+            // Для лайфхаков - 1-2 конкретных направления
+            return Array(allDestinations.shuffled().prefix(Int.random(in: 1...2)))
         default:
             return Array(allDestinations.shuffled().prefix(1))
         }
