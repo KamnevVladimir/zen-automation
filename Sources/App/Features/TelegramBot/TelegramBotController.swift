@@ -124,84 +124,82 @@ final class TelegramBotController {
     
     private func findPostsForPromotion(chatId: Int, req: Request) async {
         do {
-            req.logger.info("🔍 Ищу посты в Дзене для промо-активности")
+            req.logger.info("🔍 Ищу посты в Дзене и анализирую наши статьи")
             
             try await sendMessage(
                 chatId: chatId,
-                text: "🔍 Ищу подходящие посты в Яндекс Дзене...\n⏳ Это займёт 10-15 секунд...",
+                text: """
+                🔍 Ищу подходящие посты в Яндекс Дзене...
+                📚 Анализирую наши статьи для умных ответов...
+                
+                ⏳ Это займёт 15-20 секунд...
+                """,
                 keyboard: getMainKeyboard(),
                 req: req
             )
             
-            // Создаём AI-клиент для генерации ответов
+            // Создаём SmartPromoService
             let aiClient = AnthropicClient(client: req.client, logger: req.logger)
+            let promoService = SmartPromoService(
+                client: req.client,
+                logger: req.logger,
+                aiClient: aiClient
+            )
             
-            // Примеры популярных постов о путешествиях (в реальности - через парсинг)
-            let examplePosts = [
-                ZenPostExample(
-                    url: "https://dzen.ru/media/id/5d9a1b2c3642b600ad8f9e12/kak-poletet-v-turtsiiu-deshevo-v-2025-godu",
-                    title: "Как полететь в Турцию дёшево в 2025 году",
-                    question: "Подскажите, а какие месяцы самые дешёвые для полётов?"
-                ),
-                ZenPostExample(
-                    url: "https://dzen.ru/media/id/5d9a1b2c3642b600ad8f9e12/byudzhetnye-strany-dlya-otdykha",
-                    title: "Бюджетные страны для отдыха",
-                    question: "Интересно, а виза в Грузию нужна?"
-                ),
-                ZenPostExample(
-                    url: "https://dzen.ru/media/id/5d9a1b2c3642b600ad8f9e12/gde-otdokhnut-zimoi-2025",
-                    title: "Где отдохнуть зимой 2025",
-                    question: "Сколько денег нужно на 2 недели в Таиланде?"
+            // Находим посты с умными ответами на основе НАШИХ статей
+            let suggestions = try await promoService.findPostsWithSmartResponses(db: req.db)
+            
+            guard !suggestions.isEmpty else {
+                try await sendMessage(
+                    chatId: chatId,
+                    text: "⚠️ Не удалось найти подходящие посты. Попробуйте позже.",
+                    keyboard: getMainKeyboard(),
+                    req: req
                 )
-            ]
+                return
+            }
             
-            var responseText = "🎯 **Найдено 3 поста для комментирования:**\n\n"
+            var responseText = "🎯 **Найдено \(suggestions.count) поста с готовыми ответами:**\n\n"
             
-            for (index, post) in examplePosts.enumerated() {
-                // Генерируем AI-ответ на вопрос
-                let systemPrompt = """
-                Ты — эксперт по путешествиям. Ответь на вопрос пользователя коротко (до 150 символов) и полезно.
-                
-                ПРАВИЛА:
-                - Конкретная информация (цены, сроки, детали)
-                - Дружелюбный тон
-                - Без спама
-                - Можешь мягко упомянуть @gdeVacationBot ТОЛЬКО если вопрос про билеты/цены
-                
-                ВОПРОС: \(post.question)
-                """
-                
-                let aiResponse = try await aiClient.generateText(
-                    systemPrompt: systemPrompt,
-                    userPrompt: "Ответь на вопрос"
-                )
-                
+            for (index, suggestion) in suggestions.enumerated() {
                 responseText += """
-                **\(index + 1). \(post.title)**
-                📎 \(post.url)
+                **\(index + 1). \(suggestion.postTitle)**
+                📎 \(suggestion.postUrl)
                 
-                ❓ Вопрос: "\(post.question)"
+                ❓ **Вопрос:**
+                "\(suggestion.question)"
                 
-                💬 Предложенный ответ:
-                _\(aiResponse.trimmingCharacters(in: .whitespacesAndNewlines))_
-                
-                ――――――――――――――――――
+                💬 **Предложенный ответ:**
+                _\(suggestion.suggestedResponse)_
                 
                 """
                 
-                // Пауза между генерациями
-                try await Task.sleep(nanoseconds: 1_000_000_000) // 1 секунда
+                // Если есть наша статья - добавляем её
+                if let ourArticleTitle = suggestion.ourArticleTitle,
+                   let ourArticleUrl = suggestion.ourArticleUrl {
+                    responseText += """
+                    
+                    📖 **Наша статья (упомянута в ответе):**
+                    \(ourArticleTitle)
+                    \(ourArticleUrl)
+                    
+                    """
+                }
+                
+                responseText += "――――――――――――――――――\n\n"
             }
             
             responseText += """
-            
-            ✅ **Что делать дальше:**
-            1. Открой ссылку на пост
+            ✅ **Инструкция:**
+            1. Открой ссылку на пост в браузере
             2. Найди этот вопрос в комментариях
-            3. Скопируй предложенный ответ (или измени его)
-            4. Отправь комментарий вручную
+            3. Скопируй готовый ответ (можешь изменить)
+            4. Вставь и отправь комментарий
             
-            🎯 Цель: 3-5 качественных комментария в день = +5-10 подписчиков в неделю!
+            🎯 **Результат:**
+            3-5 комментариев в день = +5-10 подписчиков в неделю!
+            
+            💡 **Совет:** Отвечай на свежие вопросы (<24ч) - больше шансов на подписку!
             """
             
             try await sendMessage(
@@ -217,7 +215,7 @@ final class TelegramBotController {
             try? await sendMessage(
                 chatId: chatId,
                 text: """
-                ❌ Ошибка при поиске постов: \(error.localizedDescription)
+                ❌ Ошибка: \(error.localizedDescription)
                 
                 Попробуйте ещё раз позже 👇
                 """,
@@ -464,12 +462,4 @@ struct TelegramKeyboard: Content {
 
 struct TelegramKeyboardButton: Content {
     let text: String
-}
-
-// MARK: - Promotion Models
-
-struct ZenPostExample {
-    let url: String
-    let title: String
-    let question: String
 }
