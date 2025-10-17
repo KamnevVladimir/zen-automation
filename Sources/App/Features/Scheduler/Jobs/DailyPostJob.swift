@@ -20,10 +20,13 @@ struct DailyPostJob: AsyncScheduledJob {
         logger.info("📝 Генерируем пост типа: \(schedule.templateType.rawValue)")
         
         do {
-            // 1. Создаём запрос на генерацию
+            // 1. Создаём запрос на генерацию с разнообразными темами
+            // Используем динамическую генерацию темы вместо предустановленной
+            let finalTopic = TravelTopics.generateTopic(for: schedule.templateType)
+            
             let request = GenerationRequest(
                 templateType: schedule.templateType,
-                topic: schedule.topic,
+                topic: finalTopic,
                 destinations: selectDestinations(for: schedule.templateType),
                 priceData: nil,
                 trendData: nil
@@ -57,19 +60,13 @@ struct DailyPostJob: AsyncScheduledJob {
     }
     
     private func selectDestinations(for type: PostCategory) -> [String] {
-        let allDestinations = [
-            "Турция", "Египет", "ОАЭ", "Таиланд", "Вьетнам",
-            "Грузия", "Армения", "Узбекистан", "Казахстан",
-            "Индия", "Шри-Ланка", "Мальдивы", "Бали", "Китай"
-        ]
-        
         switch type {
         case .comparison:
-            return Array(allDestinations.shuffled().prefix(2))
+            return TravelTopics.generateDestinationsForComparison(count: 2)
         case .budget, .trending:
-            return Array(allDestinations.shuffled().prefix(5))
+            return TravelTopics.generateDestinationsForOverview(count: 5)
         default:
-            return Array(allDestinations.shuffled().prefix(1))
+            return [TravelTopics.randomDestination()]
         }
     }
 }
