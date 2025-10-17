@@ -12,41 +12,23 @@ struct ScheduleConfig {
         }
     }
     
-    // Массивы тем для ротации (чтобы контент был разнообразным)
-    static let morningTopics = [
-        "Лайфхаки для экономии в путешествиях",
-        "Как найти дешёвые билеты",
-        "Секреты бронирования отелей",
-        "Ошибки туристов которых можно избежать",
-        "Способы сэкономить на трансферах"
-    ]
-    
-    static let eveningTopics = [
-        "Бюджетные направления для отдыха",
-        "Куда поехать без визы из России",
-        "Сравнение популярных направлений",
-        "Недорогие страны для зимнего отдыха",
-        "Экзотические направления с хорошим бюджетом"
-    ]
-    
     static var defaultSchedules: [DailySchedule] {
-        // Ротация тем каждый день
-        let dayOfYear = Calendar.current.ordinality(of: .day, in: .year, for: Date()) ?? 1
-        
+        // Темы генерируются динамически в DailyPostJob через TravelTopics
+        // Здесь указываем только расписание
         return [
             // УТРЕННИЙ ПОСТ (08:00) - лайфхаки и практика
             DailySchedule(
                 hour: 8,
                 minute: 0,
                 templateType: .lifehack,
-                topic: morningTopics[dayOfYear % morningTopics.count]
+                topic: "динамическая генерация в TravelTopics"
             ),
             // ВЕЧЕРНИЙ ПОСТ (20:00) - направления и бюджет
             DailySchedule(
                 hour: 20,
                 minute: 0,
                 templateType: .budget,
-                topic: eveningTopics[dayOfYear % eveningTopics.count]
+                topic: "динамическая генерация в TravelTopics"
             )
         ]
     }
