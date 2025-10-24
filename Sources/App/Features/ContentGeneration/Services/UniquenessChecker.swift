@@ -138,7 +138,7 @@ final class UniquenessChecker {
     }
     
     private func checkSeasonalRestrictions(topic: String, category: PostCategory, existingPosts: [ZenPostModel]) -> Double {
-        let currentMonth = Calendar.current.component(.month, from: Date())
+        let _ = Calendar.current.component(.month, from: Date())
         
         // Сезонные темы не должны повторяться чаще чем раз в 2 месяца
         let seasonalTopics = [

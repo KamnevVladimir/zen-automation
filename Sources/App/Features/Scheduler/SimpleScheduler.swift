@@ -88,6 +88,7 @@ final class SimpleScheduler {
             let contentGenerator = ContentGeneratorService(
                 aiClient: aiClient,
                 validator: validator,
+                db: app.db,
                 logger: app.logger
             )
             let notifier = TelegramNotifier(client: app.client, logger: app.logger)

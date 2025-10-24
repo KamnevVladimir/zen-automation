@@ -107,7 +107,7 @@ final class TrendingOptimizer {
         
         for post in posts {
             let words = post.title.lowercased()
-                .components(separatedBy: .whitespacesAndPunctuation)
+                .components(separatedBy: .whitespacesAndPunctuationTrending)
                 .filter { $0.count > 3 } // Только слова длиннее 3 символов
             
             for word in words {
@@ -140,7 +140,7 @@ final class TrendingOptimizer {
     }
     
     private func optimizeTitle(_ title: String, trends: [TrendingTopic], category: PostCategory) -> String {
-        var optimizedTitle = title
+        let _ = title
         
         // Добавляем трендовые слова в заголовок
         let trendingWords = trends.first { $0.type == .words }?.keywords.prefix(3) ?? []
@@ -346,7 +346,7 @@ final class TrendingOptimizer {
         }
         
         // Если все оптимальные времена прошли, берём завтра в 8:00
-        var tomorrow = calendar.date(byAdding: .day, value: 1, to: now) ?? now
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: now) ?? now
         var components = calendar.dateComponents([.year, .month, .day], from: tomorrow)
         components.hour = 8
         components.minute = 0
@@ -461,6 +461,6 @@ struct TrendingOptimizationResult {
 // MARK: - Extensions
 
 extension CharacterSet {
-    static let whitespacesAndPunctuation = CharacterSet.whitespacesAndNewlines
+    static let whitespacesAndPunctuationTrending = CharacterSet.whitespacesAndNewlines
         .union(.punctuationCharacters)
 }

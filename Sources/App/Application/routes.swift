@@ -33,6 +33,7 @@ func routes(_ app: Application) throws {
         let contentGenerator = ContentGeneratorService(
             aiClient: AnthropicClient(client: req.application.client, logger: req.application.logger),
             validator: ContentValidator(),
+            db: req.db,
             logger: req.application.logger
         )
         let notifier = TelegramNotifier(client: req.application.client, logger: req.application.logger)
@@ -173,6 +174,7 @@ func routes(_ app: Application) throws {
     let contentGenerator = ContentGeneratorService(
         aiClient: aiClient,
         validator: validator,
+        db: app.db,
         logger: logger
     )
     

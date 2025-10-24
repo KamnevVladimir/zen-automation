@@ -150,15 +150,15 @@ final class DynamicTopicGenerator {
     }
     
     private func generateTrendingTopic() -> String {
-        let currentYear = Calendar.current.component(.year, from: Date())
+        let _ = Calendar.current.component(.year, from: Date())
         
         let trendingAspects = [
-            "куда поехать в \(currentYear)",
-            "популярные направления \(currentYear)",
-            "тренды путешествий \(currentYear)",
-            "хиты сезона \(currentYear)",
-            "модные направления \(currentYear)",
-            "куда летят все в \(currentYear)"
+            "куда поехать в 2025",
+            "популярные направления 2025",
+            "тренды путешествий 2025",
+            "хиты сезона 2025",
+            "модные направления 2025",
+            "куда летят все в 2025"
         ]
         
         return trendingAspects.randomElement() ?? "тренды путешествий"
@@ -275,13 +275,13 @@ final class DynamicTopicGenerator {
     }
     
     private func generateVisaFreeTopic() -> String {
-        let currentYear = Calendar.current.component(.year, from: Date())
+        let _ = Calendar.current.component(.year, from: Date())
         
         let visaFreeAspects = [
-            "безвизовые страны \(currentYear)",
+            "безвизовые страны 2025",
             "куда поехать без визы",
             "страны без визы для россиян",
-            "безвизовые направления \(currentYear)",
+            "безвизовые направления 2025",
             "куда лететь без визы"
         ]
         
@@ -289,7 +289,7 @@ final class DynamicTopicGenerator {
     }
     
     private func enhanceWithCurrentTrends(_ topic: String, category: PostCategory) -> String {
-        let currentYear = Calendar.current.component(.year, from: Date())
+        let _ = Calendar.current.component(.year, from: Date())
         
         // Добавляем актуальные тренды 2025
         let trends = [
