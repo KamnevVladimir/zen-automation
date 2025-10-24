@@ -58,6 +58,21 @@ public func configure(_ app: Application) throws {
     // Маршруты
     try routes(app)
     
+    // Регистрируем сервисы
+    app.services.register(ContentGeneratorService.self) { container in
+        let aiClient = try container.make(AIClientProtocol.self)
+        let validator = try container.make(ContentValidatorProtocol.self)
+        let db = container.db
+        let logger = container.logger
+        
+        return ContentGeneratorService(
+            aiClient: aiClient,
+            validator: validator,
+            db: db,
+            logger: logger
+        )
+    }
+    
     // Запускаем встроенный планировщик для автопостов
     let scheduler = SimpleScheduler(app: app)
     scheduler.startPostSchedule()

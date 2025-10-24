@@ -14,16 +14,23 @@ final class ContentGeneratorService: ContentGeneratorServiceProtocol {
     private let aiClient: AIClientProtocol
     private let validator: ContentValidatorProtocol
     private let viralOptimizer: ViralContentOptimizer
+    private let uniquenessChecker: UniquenessChecker
+    private let dynamicTopicGenerator: DynamicTopicGenerator
+    private let trendingOptimizer: TrendingOptimizer
     private let logger: Logger
     
     init(
         aiClient: AIClientProtocol,
         validator: ContentValidatorProtocol,
+        db: Database,
         logger: Logger
     ) {
         self.aiClient = aiClient
         self.validator = validator
         self.viralOptimizer = ViralContentOptimizer()
+        self.uniquenessChecker = UniquenessChecker(db: db, logger: logger)
+        self.dynamicTopicGenerator = DynamicTopicGenerator(db: db, logger: logger)
+        self.trendingOptimizer = TrendingOptimizer(db: db, logger: logger)
         self.logger = logger
     }
     
@@ -32,15 +39,21 @@ final class ContentGeneratorService: ContentGeneratorServiceProtocol {
         
         let startTime = Date()
         
-        // 1. Получаем существующие заголовки для проверки уникальности
-        let existingTitles = try await ZenPostModel.query(on: db)
-            .all()
-            .map { $0.title.lowercased() }
+        // 1. Генерируем уникальную тему с учётом всех ограничений
+        let uniqueTopic = try await dynamicTopicGenerator.generateUniqueTopic(for: request.templateType)
+        logger.info("🎯 Сгенерирована уникальная тема: \(uniqueTopic)")
         
-        logger.info("📚 Найдено существующих постов: \(existingTitles.count)")
+        // 2. Создаём обновлённый запрос с уникальной темой
+        let updatedRequest = GenerationRequest(
+            templateType: request.templateType,
+            topic: uniqueTopic,
+            destinations: request.destinations,
+            priceData: request.priceData,
+            trendData: request.trendData
+        )
         
-        // 2. Генерация текста с контекстом уникальности
-        let textContent = try await generateText(for: request, existingTitles: existingTitles)
+        // 3. Генерация текста с контекстом уникальности
+        let textContent = try await generateText(for: updatedRequest, existingTitles: [])
         logger.info("✅ Текст сгенерирован")
         
         // 2. Парсинг JSON ответа от Claude (убираем markdown code fence если есть)
@@ -111,8 +124,29 @@ final class ContentGeneratorService: ContentGeneratorServiceProtocol {
             category: request.templateType
         )
         
-        // 3. Валидация контента - ВАЖНО: валидируем fullPost, а не старое поле body!
-        let validationResult = validator.validate(body: fullPost, tags: optimizedTags)
+        // 3. Оптимизация для попадания в чарты
+        var generatedContent = GeneratedContent(
+            title: title,
+            subtitle: subtitle,
+            shortPost: shortPost,
+            fullPost: fullPost,
+            tags: optimizedTags,
+            metaDescription: metaDescription
+        )
+        
+        let trendingResult = try await trendingOptimizer.optimizeForTrending(
+            content: &generatedContent,
+            category: request.templateType
+        )
+        
+        logger.info("📈 Оптимизация для трендов завершена (score: \(String(format: "%.1f%%", trendingResult.trendingScore * 100)))")
+        
+        // Обновляем контент с оптимизированными данными
+        let finalTitle = trendingResult.optimizedTitle
+        let finalTags = trendingResult.optimizedTags
+        
+        // 4. Валидация контента - ВАЖНО: валидируем fullPost, а не старое поле body!
+        let validationResult = validator.validate(body: fullPost, tags: finalTags)
         if !validationResult.isValid {
             logger.warning("⚠️ Контент не прошёл валидацию: \(validationResult.issues.joined(separator: ", "))")
             throw Abort(.badRequest, reason: "Контент не прошёл валидацию")
@@ -124,14 +158,14 @@ final class ContentGeneratorService: ContentGeneratorServiceProtocol {
         let imageURLs = try await generateImages(prompts: imagePromptsEnglish)
         logger.info("✅ Изображения сгенерированы: \(imageURLs.count) шт")
         
-        // 5. Сохранение в БД с оптимизированными тегами
+        // 5. Сохранение в БД с финальными оптимизированными данными
         let post = ZenPostModel(
-            title: title,
+            title: finalTitle, // Используем оптимизированный заголовок
             subtitle: subtitle,
             body: body,
             shortPost: shortPost,
             fullPost: fullPost,
-            tags: optimizedTags, // Используем оптимизированные теги
+            tags: finalTags, // Используем финальные оптимизированные теги
             metaDescription: metaDescription,
             templateType: request.templateType.rawValue,
             status: .draft
@@ -165,11 +199,11 @@ final class ContentGeneratorService: ContentGeneratorServiceProtocol {
         
         return GenerationResponse(
             postId: post.id!,
-            title: title,
+            title: finalTitle, // Возвращаем финальный оптимизированный заголовок
             subtitle: subtitle,
             shortPost: shortPost,
             fullPost: fullPost,
-            tags: optimizedTags, // Возвращаем оптимизированные теги
+            tags: finalTags, // Возвращаем финальные оптимизированные теги
             metaDescription: metaDescription,
             imageURLs: imageURLs,
             estimatedReadTime: estimatedReadTime,
@@ -309,6 +343,17 @@ extension Array {
     subscript(safe index: Int) -> Element? {
         indices.contains(index) ? self[index] : nil
     }
+}
+
+// MARK: - GeneratedContent Model
+
+struct GeneratedContent {
+    var title: String
+    var subtitle: String?
+    var shortPost: String
+    var fullPost: String
+    var tags: [String]
+    var metaDescription: String?
 }
 
 // MARK: - Generation Log Model

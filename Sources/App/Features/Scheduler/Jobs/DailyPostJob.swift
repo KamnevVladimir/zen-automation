@@ -20,13 +20,10 @@ struct DailyPostJob: AsyncScheduledJob {
         logger.info("📝 Генерируем пост типа: \(schedule.templateType.rawValue)")
         
         do {
-            // 1. Создаём запрос на генерацию с разнообразными темами
-            // Используем динамическую генерацию темы вместо предустановленной
-            let finalTopic = TravelTopics.generateTopic(for: schedule.templateType)
-            
+            // 1. Создаём запрос на генерацию (тема будет сгенерирована динамически)
             let request = GenerationRequest(
                 templateType: schedule.templateType,
-                topic: finalTopic,
+                topic: nil, // Тема будет сгенерирована автоматически
                 destinations: selectDestinations(for: schedule.templateType),
                 priceData: nil,
                 trendData: nil
